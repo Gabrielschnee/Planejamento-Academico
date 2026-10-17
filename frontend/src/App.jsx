@@ -225,9 +225,9 @@ function App() {
 
       {activeView === 'professores' && <>
         {header('Professores', 'Visão global das alocações e carga atribuída no período filtrado.', 'Equipe acadêmica', data.professores.length)}
-        {data.sessao?.is_staff && section('Adicionar professor', 'E-mail e identificador único evitam cadastros duplicados.', <form className="form-grid three" onSubmit={e => submit(e, '/professores/', { nome: forms.professorName, email: forms.professorEmail, identificacao: forms.teacherId || null, vinculo: forms.teacherLink || '', ch_maxima_periodo: Number(forms.teacherLimit || 400) }, 'Professor adicionado.', ['professorName', 'professorEmail', 'teacherId', 'teacherLink'])}>
+        {data.sessao?.is_staff && section('Adicionar professor', 'O nome é obrigatório; e-mail e identificação são opcionais.', <form className="form-grid three" onSubmit={e => submit(e, '/professores/', { nome: forms.professorName, email: forms.professorEmail || null, identificacao: forms.teacherId || null, vinculo: forms.teacherLink || '', ch_maxima_periodo: Number(forms.teacherLimit || 400) }, 'Professor adicionado.', ['professorName', 'professorEmail', 'teacherId', 'teacherLink'])}>
           <input className="field-control" placeholder="Nome completo" value={forms.professorName} onChange={e => set('professorName', e.target.value)} required />
-          <input className="field-control" type="email" placeholder="E-mail institucional" value={forms.professorEmail} onChange={e => set('professorEmail', e.target.value)} required />
+          <input className="field-control" type="email" placeholder="E-mail institucional (opcional)" value={forms.professorEmail} onChange={e => set('professorEmail', e.target.value)} />
           <input className="field-control" placeholder="Identificação única (opcional)" value={forms.teacherId} onChange={e => set('teacherId', e.target.value)} />
           <input className="field-control" placeholder="Vínculo (opcional)" value={forms.teacherLink || ''} onChange={e => set('teacherLink', e.target.value)} />
           <input className="field-control" type="number" min="0" placeholder="CH máxima no período (padrão 400 h)" value={forms.teacherLimit || ''} onChange={e => set('teacherLimit', e.target.value)} />

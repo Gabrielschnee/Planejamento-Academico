@@ -32,7 +32,7 @@ class Curso(TimeStamped):
 class Professor(TimeStamped):
     identificacao = models.CharField(max_length=40, unique=True, null=True, blank=True)
     nome = models.CharField(max_length=150)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, blank=True, null=True)
     vinculo = models.CharField(max_length=100, blank=True)
     usuario = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="professor")
@@ -42,7 +42,7 @@ class Professor(TimeStamped):
     class Meta:
         ordering = ["nome"]
         verbose_name_plural = "professores"
-        constraints = [models.UniqueConstraint(Lower("email"), name="professor_email_case_insensitive_uniq")]
+        constraints = [models.UniqueConstraint(Lower("email"), condition=models.Q(email__isnull=False) & ~models.Q(email=""), name="professor_email_case_insensitive_uniq")]
 
     def __str__(self):
         return self.nome
