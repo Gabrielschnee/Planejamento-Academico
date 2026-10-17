@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .models import (AlocacaoProfessor, AuditLog, Curso, Disciplina, HorarioAula, OfertaDisciplina,
-                     ParticipacaoCurso, PeriodoLetivo, Professor)
+                     ParticipacaoCurso, PeriodoLetivo, Professor, Sala, Turma)
 
 
 def _ser(model):
@@ -11,6 +11,8 @@ def _ser(model):
 
 CursoSerializer = _ser(Curso)
 ProfessorSerializer = _ser(Professor)
+SalaSerializer = _ser(Sala)
+TurmaSerializer = _ser(Turma)
 DisciplinaSerializer = _ser(Disciplina)
 PeriodoLetivoSerializer = _ser(PeriodoLetivo)
 ParticipacaoCursoSerializer = _ser(ParticipacaoCurso)
@@ -25,8 +27,8 @@ class OfertaDisciplinaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OfertaDisciplina
-        fields = ["id", "disciplina", "periodo", "turma", "tipo", "carga_horaria", "curso_responsavel",
-                  "participacoes", "alocacoes", "horarios", "criado_em", "atualizado_em"]
+        fields = ["id", "disciplina", "periodo", "turma", "turma_ref", "tipo", "carga_horaria", "curso_responsavel",
+                  "periodo_turma", "participacoes", "alocacoes", "horarios", "criado_em", "atualizado_em"]
 
 
 class AuditLogSerializer(serializers.ModelSerializer):

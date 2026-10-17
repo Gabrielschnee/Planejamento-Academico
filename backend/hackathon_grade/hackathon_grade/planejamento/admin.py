@@ -1,8 +1,8 @@
 from django.contrib import admin
 from . import models as m
 
-for model in (m.Curso, m.Professor, m.Disciplina, m.PeriodoLetivo, m.OfertaDisciplina,
-              m.ParticipacaoCurso, m.AlocacaoProfessor, m.HorarioAula):
+for model in (m.Curso, m.Professor, m.Disciplina, m.PeriodoLetivo, m.Turma, m.OfertaDisciplina,
+              m.ParticipacaoCurso, m.AlocacaoProfessor, m.HorarioAula, m.Sala):
     admin.site.register(model)
 
 

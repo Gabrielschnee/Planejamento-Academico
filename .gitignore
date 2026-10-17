@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+backend/hackathon_grade/hackathon_grade/db.sqlite3
+frontend/node_modules/
+node_modules/
+frontend/dist/

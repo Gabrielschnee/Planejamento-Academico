@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-me")
@@ -29,7 +30,22 @@ TEMPLATES = [{
         "django.contrib.messages.context_processors.messages"]},
 }]
 WSGI_APPLICATION = "config.wsgi.application"
-DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+database_url = os.environ.get("DATABASE_URL", "")
+if database_url.startswith(("postgres://", "postgresql://")):
+    parsed_database_url = urlparse(database_url)
+    database_options = parse_qs(parsed_database_url.query)
+    DATABASES = {"default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": parsed_database_url.path.lstrip("/"),
+        "USER": parsed_database_url.username or "",
+        "PASSWORD": parsed_database_url.password or "",
+        "HOST": parsed_database_url.hostname or "",
+        "PORT": parsed_database_url.port or "",
+        "OPTIONS": {"sslmode": database_options["sslmode"][0]} if "sslmode" in database_options else {},
+        "CONN_MAX_AGE": 60,
+    }}
+else:
+    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
 LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "America/Sao_Paulo"
 USE_I18N = True

@@ -1,637 +1,309 @@
-import { useEffect, useState } from 'react'
-import { supabase } from './supabaseClient'
+import { useCallback, useEffect, useState } from 'react'
+import { allPages, api } from './api'
 import './App.css'
 
-export default function App() {
-  const [abaAtiva, setAbaAtiva] = useState('cursos') // 'cursos', 'professores', 'salas', 'grade'
-  
-  // Estados para Cursos
-  const [cursos, setCursos] = useState([])
-  const [novoCurso, setNovoCurso] = useState('')
-  const [novoCodigo, setNovoCodigo] = useState('')
-  const [coordenadorId, setCoordenadorId] = useState('')
-  
-  // Estado para Edição de Curso
-  const [cursoEditandoId, setCursoEditandoId] = useState(null)
-  const [coordenadorEditId, setCoordenadorEditId] = useState('')
+const VIEWS = [
+  ['painel', 'Visão geral'], ['cursos', 'Cursos'], ['professores', 'Professores'],
+  ['disciplinas', 'Disciplinas'], ['salas', 'Salas e laboratórios'], ['grade', 'Grade horária'],
+]
+const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+const emptyData = { cursos: [], professores: [], disciplinas: [], periodos: [], ofertas: [], salas: [], coordenadores: [], sessao: null, indicadores: {} }
 
-  // Estados para Professores
-  const [professores, setProfessores] = useState([])
-  const [nomeProf, setNomeProf] = useState('')
-  const [emailProf, setEmailProf] = useState('')
+function Login({ onLogin, error }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  async function submit(event) {
+    event.preventDefault()
+    setBusy(true)
+    try { await onLogin(username, password) } finally { setBusy(false) }
+  }
+  return <main className="login-page">
+    <form className="login-card" onSubmit={submit}>
+      <Brand />
+      <p className="eyebrow">Acesso seguro</p>
+      <h1>Entre no portal</h1>
+      <p className="page-description">Use sua conta de coordenação ou administração acadêmica.</p>
+      {error && <div className="notice error" role="alert">{error}</div>}
+      <label className="login-label">Usuário<input className="field-control" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required /></label>
+      <label className="login-label">Senha<input className="field-control" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
+      <button className="button-primary" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
+    </form>
+  </main>
+}
 
-  // Estados para Salas
-  const [salas, setSalas] = useState([])
-  const [nomeSala, setNomeSala] = useState('')
-  const [capacidadeSala, setCapacidadeSala] = useState('')
+function Brand() {
+  return <a className="brand" href="#inicio">
+    <svg className="brand-mark" viewBox="0 0 56 44" aria-hidden="true" focusable="false">
+      <path d="M3 39 23 14l8 25H3Z" fill="currentColor" />
+      <path d="m18 39 17-31 9 31H18Z" fill="currentColor" opacity=".78" />
+      <path d="m31 39 12-22 10 22H31Z" fill="currentColor" opacity=".58" />
+    </svg><span>Portal do Professor</span>
+  </a>
+}
 
-  // Estados para Grade Horária
-  const [grade, setGrade] = useState([])
-  const [cursoId, setCursoId] = useState('')
-  const [professorId, setProfessorId] = useState('')
-  const [salaId, setSalaId] = useState('')
-  const [periodo, setPeriodo] = useState('2º Período')
-  const [disciplina, setDisciplina] = useState('')
-  const [diaSemana, setDiaSemana] = useState('Segunda-feira')
-  const [horarioInicio, setHorarioInicio] = useState('')
-  const [horarioFim, setHorarioFim] = useState('')
+function Select({ value, onChange, children, ...props }) {
+  return <select className="field-control" value={value} onChange={onChange} {...props}>{children}</select>
+}
 
+function Stat({ label, value, detail, onClick }) {
+  return <button type="button" className={`stat-card${onClick ? ' stat-action' : ''}`} onClick={onClick}>
+    <span>{label}</span><strong>{value ?? '—'}</strong>{detail && <small>{detail}</small>}
+  </button>
+}
+
+function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('portal-token') || '')
+  const [loginError, setLoginError] = useState('')
+  const [activeView, setActiveView] = useState('painel')
+  const [data, setData] = useState(emptyData)
+  const [filters, setFilters] = useState({ periodo: '', curso: '', professor: '', disciplina: '', unidade: '' })
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [editingCourse, setEditingCourse] = useState(null)
+  const [editingMeeting, setEditingMeeting] = useState(null)
+  const [editingAllocation, setEditingAllocation] = useState(null)
+  const [forms, setForms] = useState({ courseName: '', courseCode: '', unit: '', modality: '', coordinatorId: '', teacherLink: '', teacherLimit: '', professorName: '', professorEmail: '', teacherId: '', subjectId: '', subjectCode: '', subjectName: '', subjectHours: '', periodId: '', periodYear: '', periodSemester: '1', periodStart: '', periodEnd: '', className: 'A', classPeriod: '', offerHours: '', responsibleCourse: '', participationCourse: '', appropriationHours: '', roomName: '', roomCapacity: '', room: '', weekday: '0', start: '', end: '', allocatedHours: '', meetingClass: '', offerId: '', offerSubject: '' })
+  const set = (name, value) => setForms(current => ({ ...current, [name]: value }))
 
-  // --- BUSCAR DADOS ---
-  async function fetchCursos() {
-    const { data, error } = await supabase
-      .from('cursos')
-      .select(`
-        *,
-        professores:coordenador_id (id, nome)
-      `)
-    if (error) console.error('Erro ao buscar cursos:', error)
-    else setCursos(data || [])
-  }
-
-  async function fetchProfessores() {
-    const { data, error } = await supabase.from('professores').select('*')
-    if (error) console.error('Erro ao buscar professores:', error)
-    else setProfessores(data || [])
-  }
-
-  async function fetchSalas() {
-    const { data, error } = await supabase.from('salas').select('*')
-    if (error) console.error('Erro ao buscar salas:', error)
-    else setSalas(data || [])
-  }
-
-  async function fetchGrade() {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('grade_horaria')
-      .select(`
-        *,
-        cursos (nome, codigo),
-        professores (nome, email),
-        salas (nome, capacidade)
-      `)
-      .order('dia_semana', { ascending: true })
-    
-    if (error) console.error('Erro ao buscar grade horária:', error)
-    else setGrade(data || [])
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    fetchCursos()
-    fetchProfessores()
-    fetchSalas()
-    fetchGrade()
+  const logout = useCallback(() => {
+    localStorage.removeItem('portal-token')
+    setToken('')
+    setData(emptyData)
   }, [])
 
-  // --- HANDLERS DE ADIÇÃO E EDIÇÃO ---
-  async function handleAddCurso(e) {
-    e.preventDefault()
-    if (!novoCurso || !novoCodigo) return
-    
-    const payload = {
-      nome: novoCurso,
-      codigo: novoCodigo,
-      coordenador_id: coordenadorId || null
-    }
+  const loadData = useCallback(async (currentToken, currentFilters = filters) => {
+    setLoading(true)
+    setError('')
+    const query = new URLSearchParams(Object.entries(currentFilters).filter(([, value]) => value))
+    try {
+      const [dashboard, rooms, coordinators, session] = await Promise.all([
+        api(`/painel/${query.size ? `?${query}` : ''}`, { token: currentToken }),
+        allPages('/salas/', { token: currentToken }),
+        allPages('/coordenadores/', { token: currentToken }),
+        api('/sessao/', { token: currentToken }),
+      ])
+      setData({ ...dashboard, salas: rooms, coordenadores: coordinators, sessao: session })
+    } catch (e) {
+      if (/401|403|credenciais|token/i.test(e.message)) logout()
+      setError(e.message)
+    } finally { setLoading(false) }
+  }, [filters, logout])
 
-    const { error } = await supabase.from('cursos').insert([payload])
-    if (error) alert('Erro ao salvar curso: ' + error.message)
-    else {
-      setNovoCurso('')
-      setNovoCodigo('')
-      setCoordenadorId('')
-      fetchCursos()
-    }
+  useEffect(() => {
+    if (token) loadData(token)
+  }, [token, loadData])
+
+  async function login(username, password) {
+    setLoginError('')
+    try {
+      const result = await api('/auth/token/', { method: 'POST', body: { username, password } })
+      localStorage.setItem('portal-token', result.token)
+      setToken(result.token)
+    } catch (e) { setLoginError(`Não foi possível entrar: ${e.message}`) }
   }
 
-  async function handleUpdateCoordenador(cursoId) {
-    const { error } = await supabase
-      .from('cursos')
-      .update({ coordenador_id: coordenadorEditId || null })
-      .eq('id', cursoId)
-
-    if (error) {
-      alert('Erro ao atualizar coordenador: ' + error.message)
-    } else {
-      alert('✅ Coordenador atualizado com sucesso!')
-      setCursoEditandoId(null)
-      setCoordenadorEditId('')
-      fetchCursos()
-    }
+  async function mutate(path, body, success, method = 'POST') {
+    setBusy(true); setNotice(''); setError('')
+    try {
+      await api(path, { method, body, token })
+      setNotice(success)
+      await loadData(token)
+      return true
+    } catch (e) { setError(e.message); return false }
+    finally { setBusy(false) }
   }
 
-  async function handleAddProfessor(e) {
-    e.preventDefault()
-    if (!nomeProf || !emailProf) return
-    const { error } = await supabase.from('professores').insert([{ nome: nomeProf, email: emailProf }])
-    if (error) alert('Erro ao salvar professor: ' + error.message)
-    else {
-      setNomeProf('')
-      setEmailProf('')
-      fetchProfessores()
-    }
+  async function submit(event, path, body, success, reset = []) {
+    event.preventDefault()
+    const ok = await mutate(path, body, success)
+    if (ok) reset.forEach(name => set(name, ''))
   }
 
-  async function handleAddSala(e) {
-    e.preventDefault()
-    if (!nomeSala || !capacidadeSala) return
-    const { error } = await supabase.from('salas').insert([{ nome: nomeSala, capacidade: parseInt(capacidadeSala) }])
-    if (error) alert('Erro ao salvar sala: ' + error.message)
-    else {
-      setNomeSala('')
-      setCapacidadeSala('')
-      fetchSalas()
+  function filteredOffers() { return data.ofertas || [] }
+  function selectedOffer() { return filteredOffers().find(o => String(o.id) === String(forms.offerId)) }
+  function exportReport() {
+    const escape = value => `"${String(value ?? '').replaceAll('"', '""')}"`
+    const rows = [['Período', 'Curso responsável', 'Cursos participantes', 'Código da disciplina', 'Disciplina', 'Turma', 'CH prevista', 'CH da oferta', 'CH apropriada por curso', 'Docentes e CH', 'Dia', 'Início', 'Fim', 'Sala']]
+    for (const offer of filteredOffers()) {
+      const meetings = offer.horarios.length ? offer.horarios : [null]
+      for (const meeting of meetings) rows.push([
+        offer.periodo, offer.curso, offer.cursos.map(c => c.codigo).join(', '), offer.codigo_disciplina,
+        offer.disciplina, offer.turma, offer.carga_prevista, offer.carga_oferta,
+        offer.participacoes.map(p => `${p.curso__codigo}: ${p.ch_apropriada} h`).join('; '),
+        offer.alocacoes.map(a => `${a.professor__nome}: ${a.ch_alocada} h`).join('; '),
+        meeting ? meeting.dia : '', meeting?.inicio || '', meeting?.fim || '', meeting?.sala || '',
+      ])
     }
+    const csv = `\uFEFF${rows.map(row => row.map(escape).join(';')).join('\r\n')}`
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'relatorio-planejamento-docente.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+  function header(title, description, eyebrow, count) {
+    return <header className="page-header"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="page-description">{description}</p></div>{count !== undefined && <div className="count-pill">Registros <strong>{count}</strong></div>}</header>
+  }
+  function section(title, description, children, extraClass = '') {
+    return <section className={`section-card ${extraClass}`}><div className="section-heading"><div><h2>{title}</h2>{description && <p>{description}</p>}</div></div>{children}</section>
+  }
+  function table(headers, rows, empty, key = 'id') {
+    if (!rows?.length) return <div className="empty-state"><strong>{empty}</strong>Quando houver registros na base central, eles aparecerão aqui.</div>
+    return <div className="table-wrap"><table className="data-table"><thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={row[key] ?? i}>{row.cells.map((cell, j) => <td key={j}>{cell}</td>)}</tr>)}</tbody></table></div>
   }
 
-  async function handleAddGrade(e) {
-    e.preventDefault()
-    if (!cursoId || !professorId || !salaId || !disciplina || !horarioInicio || !horarioFim) return
+  if (!token) return <Login onLogin={login} error={loginError} />
 
-    const { error } = await supabase.from('grade_horaria').insert([{
-      curso_id: cursoId,
-      professor_id: professorId,
-      sala_id: salaId,
-      periodo,
-      disciplina,
-      dia_semana: diaSemana,
-      horario_inicio: horarioInicio,
-      horario_fim: horarioFim
-    }])
+  const offers = filteredOffers()
+  const indicators = data.indicadores || {}
+  const conflictRows = (data.conflitos_detectados || []).map((c, i) => ({ id: i, cells: [c.motivos.join(', '), c.dia, c.horario_a, c.oferta_a, c.horario_b, c.oferta_b] }))
+  const courseRows = (data.cursos || []).filter(c => (!filters.curso || String(c.id) === filters.curso) && (!filters.unidade || c.unidade === filters.unidade)).map(c => ({ id: c.id, cells: [<span className="code-label">{c.codigo}</span>, <span className="table-primary">{c.nome}</span>, c.unidade || '—', c.modalidade || '—', c.coordenador__username || '—', data.sessao?.is_staff ? <button className="button-quiet" onClick={() => { setEditingCourse(c); set('courseCode', c.codigo); set('courseName', c.nome); set('unit', c.unidade || ''); set('modality', c.modalidade || ''); set('coordinatorId', String(c.coordenador_id || '')) }}>Editar</button> : '—'] }))
+  const professorRows = (data.professores || []).filter(p => !filters.professor || String(p.id) === filters.professor).map(p => {
+    const allocations = offers.flatMap(o => o.alocacoes.filter(a => a.professor_id === p.id).map(a => ({ o, a })))
+    const total = allocations.reduce((sum, entry) => sum + entry.a.ch_alocada, 0)
+    return { id: p.id, cells: [<span className="table-primary">{p.nome}</span>, p.identificacao || '—', p.vinculo || '—', p.email, `${total} h / ${p.ch_maxima_periodo} h`, allocations.length ? <div className="tag-list">{allocations.map(({ o, a }) => <button key={a.id} className="person-chip chip-action" onClick={() => { setActiveView('grade'); setEditingAllocation(a); set('offerId', String(o.id)); set('teacherId', String(p.id)); set('allocatedHours', String(a.ch_alocada)) }}>{o.disciplina} · {a.ch_alocada} h · editar</button>)}</div> : 'Sem alocações'] }
+  })
+  const subjectRows = (data.disciplinas || []).filter(d => !filters.disciplina || String(d.id) === filters.disciplina).map(d => {
+    const list = offers.filter(o => o.disciplina_id === d.id)
+    return { id: d.id, cells: [<span className="code-label">{d.codigo}</span>, <span className="table-primary">{d.nome}</span>, `${d.carga_horaria} h`, list.map(o => `${o.curso} · turma ${o.turma} · ${o.periodo}`).join('; ') || 'Sem ofertas'] }
+  })
+  const courseOfferRows = offers.map(o => ({ id: o.id, cells: [<span className="code-label">{o.codigo_disciplina}</span>, <span className="table-primary">{o.disciplina}</span>, `${o.curso} · turma ${o.turma}`, o.periodo, `${o.carga_prevista} h`, `${o.carga_oferta} h`, o.alocacoes.map(a => `${a.professor__nome}: ${a.ch_alocada} h`).join(', ') || 'Pendente', o.horarios.map(h => `${h.dia} ${h.inicio}–${h.fim} · ${h.sala || 'sem sala'}`).join('; ') || 'Pendente'] }))
+  const roomRows = (data.salas || []).map(room => ({ id: room.id, cells: [<span className="table-primary">{room.nome}</span>, room.capacidade ?? 'Não informada'] }))
+  const scheduleRows = offers.flatMap(o => o.horarios.map(h => ({ id: h.id, cells: [WEEKDAYS[h.dia_semana] || h.dia, `${h.inicio}–${h.fim}`, <><span className="table-primary">{o.disciplina}</span><span className="table-secondary">{o.codigo_disciplina} · {o.carga_oferta} h na oferta</span></>, `${o.curso} · turma ${h.turma || o.turma} · ${o.periodo}`, o.alocacoes.map(a => `${a.professor__nome} (${a.ch_alocada} h)`).join(', ') || 'Sem docente', h.sala || '—', <div className="row-actions"><button className="button-quiet" onClick={() => { setEditingMeeting(h); set('offerId', String(o.id)); set('weekday', String(h.dia_semana)); set('start', h.inicio); set('end', h.fim); set('room', String(h.sala_registro_id || '')); set('meetingClass', h.turma || o.turma) }}>Editar</button><button className="button-danger" onClick={() => window.confirm('Excluir este horário?') && mutate(`/horarios/${h.id}/`, undefined, 'Horário excluído.', 'DELETE')}>Excluir</button></div>] })))
 
-    if (error) {
-      if (error.code === '23P01') {
-        alert('❌ CONFLITO DETETADO: Este professor já possui uma aula alocada neste mesmo dia e intervalo de horário!')
-      } else {
-        alert('Erro ao alocar horário: ' + error.message)
-      }
-    } else {
-      alert('✅ Aula alocada com sucesso e validada sem conflitos!')
-      setDisciplina('')
-      setHorarioInicio('')
-      setHorarioFim('')
-      fetchGrade()
-    }
-  }
+  return <div className="app-shell">
+    <header className="topbar"><Brand /><nav className="topbar-nav" aria-label="Navegação principal">{VIEWS.map(([id, title]) => <button key={id} onClick={() => setActiveView(id)} className="nav-item" aria-current={activeView === id ? 'page' : undefined}>{title}</button>)}</nav><div className="topbar-status">{data.sessao?.is_staff ? 'Administração' : 'Coordenação'} · <button className="logout-button" onClick={logout}>Sair</button></div></header>
+    <main className="page-content">
+      {error && <div className="notice error" role="alert">{error}<button className="notice-close" onClick={() => setError('')} aria-label="Fechar aviso">×</button></div>}
+      {notice && <div className="notice success" role="status">{notice}<button className="notice-close" onClick={() => setNotice('')} aria-label="Fechar aviso">×</button></div>}
+      <div className="filter-bar"><label>Período letivo<Select value={filters.periodo} onChange={e => setFilters(f => ({ ...f, periodo: e.target.value }))}><option value="">Todos</option>{(data.periodos || []).map(p => <option key={p.id} value={p.id}>{p.ano}/{p.semestre}</option>)}</Select></label><label>Curso<Select value={filters.curso} onChange={e => setFilters(f => ({ ...f, curso: e.target.value }))}><option value="">Todos</option>{(data.cursos || []).map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}</Select></label><label>Professor<Select value={filters.professor} onChange={e => setFilters(f => ({ ...f, professor: e.target.value }))}><option value="">Todos</option>{(data.professores || []).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</Select></label><label>Disciplina<Select value={filters.disciplina} onChange={e => setFilters(f => ({ ...f, disciplina: e.target.value }))}><option value="">Todas</option>{(data.disciplinas || []).map(d => <option key={d.id} value={d.id}>{d.codigo} · {d.nome}</option>)}</Select></label><label>Unidade<Select value={filters.unidade} onChange={e => setFilters(f => ({ ...f, unidade: e.target.value }))}><option value="">Todas</option>{[...new Set((data.cursos || []).map(c => c.unidade).filter(Boolean))].map(u => <option key={u} value={u}>{u}</option>)}</Select></label><button className="button-secondary filter-submit" onClick={() => loadData(token, filters)}>Aplicar filtros</button></div>
+      {loading && <div className="loading-line" role="status">Atualizando dados da base central…</div>}
 
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="#inicio" onClick={() => setAbaAtiva('grade')}>
-          <svg className="brand-mark" viewBox="0 0 56 44" aria-hidden="true" focusable="false">
-            <path d="M3 39 23 14l8 25H3Z" fill="currentColor" />
-            <path d="m18 39 17-31 9 31H18Z" fill="currentColor" opacity=".78" />
-            <path d="m31 39 12-22 10 22H31Z" fill="currentColor" opacity=".58" />
-          </svg>
-          <span>Portal do Professor</span>
-        </a>
-        <nav className="topbar-nav" aria-label="Navegação principal">
-          <button
-            onClick={() => setAbaAtiva('cursos')}
-            className="nav-item"
-            aria-current={abaAtiva === 'cursos' ? 'page' : undefined}
-          >
-            Cursos
-          </button>
+      {activeView === 'painel' && <>
+        {header('Planejamento docente', 'Visão integrada de cursos, docentes, ofertas e horários usando os mesmos registros centrais.', 'Painel acadêmico')}
+        <div className="stats-grid">
+          <Stat label="Professores alocados" value={indicators.professores_alocados} detail="Docentes distintos" onClick={() => setActiveView('professores')} />
+          <Stat label="Cursos planejados" value={indicators.cursos_planejados} detail={`${indicators.ofertas_planejadas ?? 0} ofertas`} onClick={() => setActiveView('cursos')} />
+          <Stat label="CH prevista" value={`${indicators.carga_prevista_disciplinas_h ?? 0} h`} detail="Catálogo das disciplinas" onClick={() => setActiveView('disciplinas')} />
+          <Stat label="CH da oferta" value={`${indicators.carga_planejada_ofertas_h ?? 0} h`} detail="Cada oferta contabilizada uma vez" />
+          <Stat label="CH atribuída" value={`${indicators.carga_docente_atribuida_h ?? 0} h`} detail="Soma das participações docentes" onClick={() => setActiveView('professores')} />
+          <Stat label="CH docente por atribuir" value={`${indicators.carga_docente_pendente_h ?? 0} h`} detail="Saldo entre oferta e alocações" onClick={() => setActiveView('grade')} />
+          <Stat label="Inconsistências de carga" value={indicators.inconsistencias_carga ?? 0} detail="Registros acima da CH da oferta" onClick={() => setActiveView('disciplinas')} />
+          <Stat label="Conflitos" value={indicators.conflitos ?? 0} detail="Docente, turma ou sala" onClick={() => setActiveView('grade')} />
+          <Stat label="Ofertas sem docente" value={indicators.ofertas_sem_docente ?? 0} detail="Pendentes de alocação" onClick={() => setActiveView('grade')} />
+          <Stat label="Ofertas sem horário" value={indicators.ofertas_sem_horario ?? 0} detail="Pendentes de planejamento" onClick={() => setActiveView('grade')} />
+        </div>
+        {section('Distribuição por curso', 'Apropriação administrativa da CH, separada da alocação de docentes.', table(['Curso', 'CH apropriada'], (data.cursos || []).map(c => ({ id: c.id, cells: [<span className="table-primary">{c.codigo} · {c.nome}</span>, `${offers.flatMap(o => o.participacoes.filter(p => p.curso_id === c.id).map(p => p.ch_apropriada)).reduce((a, b) => a + b, 0)} h`] })), 'Nenhum curso planejado'))}
+        {section('Relatório integrado', 'Exporta as ofertas, as apropriações por curso, as alocações docentes e os encontros com os filtros aplicados.', <button className="button-primary" onClick={exportReport}>Baixar CSV</button>)}
+        {section('Conflitos detectados', 'Sobreposições nos dados atuais, agrupadas pelo par de registros em conflito.', table(['Tipo', 'Dia', 'Horário A', 'Registro A', 'Horário B', 'Registro B'], conflictRows, 'Nenhum conflito detectado'))}
+        {data.sessao?.is_staff && section('Períodos letivos', 'Períodos centralizados para as ofertas de todos os cursos.', <><form className="form-grid three" onSubmit={e => submit(e, '/periodos/', { ano: Number(forms.periodYear), semestre: Number(forms.periodSemester), data_inicio: forms.periodStart || null, data_fim: forms.periodEnd || null, ativo: true }, 'Período letivo adicionado.', ['periodYear', 'periodStart', 'periodEnd'])}>
+          <input className="field-control" type="number" min="2000" max="2200" placeholder="Ano" value={forms.periodYear} onChange={e => set('periodYear', e.target.value)} required />
+          <Select value={forms.periodSemester} onChange={e => set('periodSemester', e.target.value)}><option value="1">1º semestre</option><option value="2">2º semestre</option></Select>
+          <input className="field-control" type="date" aria-label="Data inicial (opcional)" value={forms.periodStart} onChange={e => set('periodStart', e.target.value)} />
+          <input className="field-control" type="date" aria-label="Data final (opcional)" value={forms.periodEnd} onChange={e => set('periodEnd', e.target.value)} />
+          <button className="button-primary" disabled={busy}>Adicionar período</button>
+        </form><div className="tag-list">{data.periodos.map(p => <span key={p.id} className="person-chip">{p.ano}/{p.semestre}{p.ativo ? ' · ativo' : ''}{p.data_inicio && p.data_fim ? ` · ${p.data_inicio}–${p.data_fim}` : ''}</span>)}</div></>)}
+      </>}
 
-          <button
-            onClick={() => setAbaAtiva('professores')}
-            className="nav-item"
-            aria-current={abaAtiva === 'professores' ? 'page' : undefined}
-          >
-            Professores
-          </button>
+      {activeView === 'cursos' && <>
+        {header('Cursos', 'Gerencie o catálogo compartilhado e acompanhe as ofertas de cada curso.', 'Estrutura acadêmica', data.cursos.length)}
+        {data.sessao?.is_staff && section(editingCourse ? 'Editar curso' : 'Adicionar curso', 'Código identifica cada curso de forma única.', <form className="form-grid" onSubmit={e => submit(e, editingCourse ? `/cursos/${editingCourse.id}/` : '/cursos/', { codigo: forms.courseCode, nome: forms.courseName, unidade: forms.unit, modalidade: forms.modality, coordenador: forms.coordinatorId || null }, editingCourse ? 'Curso atualizado.' : 'Curso adicionado.', ['courseCode', 'courseName', 'unit', 'modality', 'coordinatorId']).then(ok => ok && setEditingCourse(null))}>
+          <input className="field-control" placeholder="Código" value={forms.courseCode} onChange={e => set('courseCode', e.target.value)} required />
+          <input className="field-control" placeholder="Nome do curso" value={forms.courseName} onChange={e => set('courseName', e.target.value)} required />
+          <input className="field-control" placeholder="Unidade (opcional)" value={forms.unit} onChange={e => set('unit', e.target.value)} />
+          <input className="field-control" placeholder="Modalidade (opcional)" value={forms.modality} onChange={e => set('modality', e.target.value)} />
+          <Select value={forms.coordinatorId} onChange={e => set('coordinatorId', e.target.value)}><option value="">Sem coordenador</option>{data.coordenadores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</Select>
+          <div className="form-actions"><button className="button-primary" disabled={busy}>{editingCourse ? 'Salvar alterações' : 'Adicionar curso'}</button>{editingCourse && <button type="button" className="button-secondary" onClick={() => setEditingCourse(null)}>Cancelar</button>}</div>
+        </form>)}
+        {section('Catálogo de cursos', 'Código único, unidade, modalidade e responsável.', table(['Código', 'Curso', 'Unidade', 'Modalidade', 'Coordenação', 'Ações'], courseRows, 'Nenhum curso cadastrado'))}
+        {section('Ofertas e planejamento', 'As disciplinas, docentes e encontros vêm das ofertas compartilhadas.', table(['Código', 'Disciplina', 'Curso / turma', 'Período', 'CH prevista', 'CH oferta', 'Docentes', 'Encontros'], courseOfferRows, 'Nenhuma oferta encontrada para os filtros'))}
+      </>}
 
-          <button
-            onClick={() => setAbaAtiva('salas')}
-            className="nav-item"
-            aria-current={abaAtiva === 'salas' ? 'page' : undefined}
-          >
-            Salas e laboratórios
-          </button>
+      {activeView === 'professores' && <>
+        {header('Professores', 'Visão global das alocações e carga atribuída no período filtrado.', 'Equipe acadêmica', data.professores.length)}
+        {data.sessao?.is_staff && section('Adicionar professor', 'E-mail e identificador único evitam cadastros duplicados.', <form className="form-grid three" onSubmit={e => submit(e, '/professores/', { nome: forms.professorName, email: forms.professorEmail, identificacao: forms.teacherId || null, vinculo: forms.teacherLink || '', ch_maxima_periodo: Number(forms.teacherLimit || 400) }, 'Professor adicionado.', ['professorName', 'professorEmail', 'teacherId', 'teacherLink'])}>
+          <input className="field-control" placeholder="Nome completo" value={forms.professorName} onChange={e => set('professorName', e.target.value)} required />
+          <input className="field-control" type="email" placeholder="E-mail institucional" value={forms.professorEmail} onChange={e => set('professorEmail', e.target.value)} required />
+          <input className="field-control" placeholder="Identificação única (opcional)" value={forms.teacherId} onChange={e => set('teacherId', e.target.value)} />
+          <input className="field-control" placeholder="Vínculo (opcional)" value={forms.teacherLink || ''} onChange={e => set('teacherLink', e.target.value)} />
+          <input className="field-control" type="number" min="0" placeholder="CH máxima no período (padrão 400 h)" value={forms.teacherLimit || ''} onChange={e => set('teacherLimit', e.target.value)} />
+          <button className="button-primary" disabled={busy}>Adicionar professor</button>
+        </form>)}
+        {section('Docentes e alocações', 'Carga atribuída soma alocações docentes distintas; não representa horas efetivamente ministradas.', table(['Professor', 'Identificação', 'Vínculo', 'E-mail', 'CH atribuída / limite', 'Disciplinas no filtro'], professorRows, 'Nenhum professor cadastrado'))}
+      </>}
 
-          <button
-            onClick={() => setAbaAtiva('grade')}
-            className="nav-item"
-            aria-current={abaAtiva === 'grade' ? 'page' : undefined}
-          >
-            Grade horária
-          </button>
-        </nav>
-        <div className="topbar-status">Hackathon 2026 · <span>GIST ativo</span></div>
-      </header>
+      {activeView === 'disciplinas' && <>
+        {header('Disciplinas', 'Catálogo único reutilizado pelas ofertas de diferentes cursos.', 'Catálogo acadêmico', data.disciplinas.length)}
+        {data.sessao?.is_staff && section('Adicionar disciplina', 'A carga prevista pertence ao catálogo; a carga planejada fica na oferta.', <form className="form-grid" onSubmit={e => submit(e, '/disciplinas/', { codigo: forms.subjectCode, nome: forms.subjectName, carga_horaria: Number(forms.subjectHours) }, 'Disciplina adicionada.', ['subjectCode', 'subjectName', 'subjectHours'])}>
+          <input className="field-control" placeholder="Código único" value={forms.subjectCode} onChange={e => set('subjectCode', e.target.value)} required />
+          <input className="field-control" placeholder="Nome da disciplina" value={forms.subjectName} onChange={e => set('subjectName', e.target.value)} required />
+          <input className="field-control" type="number" min="1" placeholder="CH prevista (h)" value={forms.subjectHours} onChange={e => set('subjectHours', e.target.value)} required />
+          <button className="button-primary" disabled={busy}>Adicionar disciplina</button>
+        </form>)}
+        {section('Catálogo de disciplinas', 'As ofertas vinculam cada disciplina ao curso, turma e período letivo.', table(['Código', 'Disciplina', 'CH prevista', 'Ofertas vinculadas'], subjectRows, 'Nenhuma disciplina cadastrada'))}
+        {section('Criar oferta', 'Disciplina, período letivo, turma e curso responsável formam a chave da oferta. Para uma oferta compartilhada, registre os demais cursos abaixo.', <form className="form-grid three" onSubmit={e => submit(e, '/ofertas/', { disciplina: Number(forms.offerSubject), periodo: Number(forms.periodId), turma: forms.className, periodo_turma: forms.classPeriod, tipo: 'DISCIPLINA', carga_horaria: Number(forms.offerHours), curso_responsavel: Number(forms.responsibleCourse) }, 'Oferta criada.', ['offerSubject', 'periodId', 'classPeriod', 'offerHours'])}>
+          <Select value={forms.offerSubject || ''} onChange={e => set('offerSubject', e.target.value)} required><option value="">Disciplina</option>{data.disciplinas.map(d => <option key={d.id} value={d.id}>{d.codigo} · {d.nome}</option>)}</Select>
+          <Select value={forms.periodId} onChange={e => set('periodId', e.target.value)} required><option value="">Período letivo</option>{data.periodos.map(p => <option key={p.id} value={p.id}>{p.ano}/{p.semestre}</option>)}</Select>
+          <Select value={forms.responsibleCourse} onChange={e => set('responsibleCourse', e.target.value)} required><option value="">Curso responsável</option>{data.cursos.map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}</Select>
+          <input className="field-control" placeholder="Identificação da turma" value={forms.className} onChange={e => set('className', e.target.value)} required />
+          <input className="field-control" placeholder="Período da turma (opcional)" value={forms.classPeriod} onChange={e => set('classPeriod', e.target.value)} />
+          <input className="field-control" type="number" min="1" placeholder="CH total planejada na oferta" value={forms.offerHours} onChange={e => set('offerHours', e.target.value)} required />
+          <button className="button-primary" disabled={busy}>Criar oferta</button>
+        </form>)}
+        {section('Compartilhar oferta com outro curso', 'A CH apropriada por curso é independente da CH docente e não pode exceder a CH da oferta.', <form className="form-grid three" onSubmit={e => submit(e, '/participacoes/', { oferta: Number(forms.offerId), curso: Number(forms.participationCourse), ch_apropriada: Number(forms.appropriationHours) }, 'Participação de curso registrada.', ['appropriationHours'])}>
+          <Select value={forms.offerId} onChange={e => set('offerId', e.target.value)} required><option value="">Oferta central</option>{offers.map(o => <option key={o.id} value={o.id}>{o.codigo_disciplina} · {o.disciplina} · turma {o.turma}</option>)}</Select>
+          <Select value={forms.participationCourse} onChange={e => set('participationCourse', e.target.value)} required><option value="">Curso participante</option>{data.cursos.map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}</Select>
+          <input className="field-control" type="number" min="0" placeholder="CH apropriada ao curso (h)" value={forms.appropriationHours} onChange={e => set('appropriationHours', e.target.value)} required />
+          <button className="button-primary" disabled={busy}>Registrar participação</button>
+        </form>)}
+      </>}
 
-      {/* Conteúdo Principal */}
-      <main className="page-content">
-        {/* ABA: CURSOS */}
-        {abaAtiva === 'cursos' && (
-          <>
-            <header className="page-header">
-              <div>
-                <p className="eyebrow">Planejamento acadêmico</p>
-                <h1>Cursos e coordenadores</h1>
-                <p className="page-description">Cadastre os cursos institucionais e atualize as pessoas responsáveis por cada formação.</p>
-              </div>
-              <div className="count-pill">
-                Total <strong>{cursos.length}</strong>
-              </div>
-            </header>
+      {activeView === 'salas' && <>
+        {header('Salas e laboratórios', 'Cadastro central de salas com validação de ocupação nos horários.', 'Infraestrutura', data.salas.length)}
+        {data.sessao?.is_staff && section('Adicionar sala', 'O mesmo identificador de sala é usado por todos os cursos.', <form className="form-grid three" onSubmit={e => submit(e, '/salas/', { nome: forms.roomName, capacidade: forms.roomCapacity ? Number(forms.roomCapacity) : null }, 'Sala adicionada.', ['roomName', 'roomCapacity'])}>
+          <input className="field-control" placeholder="Identificação da sala" value={forms.roomName} onChange={e => set('roomName', e.target.value)} required />
+          <input className="field-control" type="number" min="1" placeholder="Capacidade (opcional)" value={forms.roomCapacity} onChange={e => set('roomCapacity', e.target.value)} />
+          <button className="button-primary" disabled={busy}>Adicionar sala</button>
+        </form>)}
+        {section('Salas cadastradas', '', table(['Sala', 'Capacidade'], roomRows, 'Nenhuma sala cadastrada'))}
+      </>}
 
-            <section className="section-card">
-              <div className="section-heading"><div><h2>Adicionar curso</h2><p>Inclua o curso e, se desejar, atribua um coordenador.</p></div></div>
-              <form onSubmit={handleAddCurso} className="form-grid">
-                <input
-                  type="text"
-                  placeholder="Nome do Curso (ex: Engenharia de Software)"
-                  value={novoCurso}
-                  onChange={(e) => setNovoCurso(e.target.value)}
-                  className="field-control"
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Código (ex: ES01)"
-                  value={novoCodigo}
-                  onChange={(e) => setNovoCodigo(e.target.value)}
-                  className="field-control"
-                  required
-                />
-                <select
-                  value={coordenadorId}
-                  onChange={(e) => setCoordenadorId(e.target.value)}
-                  className="field-control"
-                >
-                  <option value="">Selecione o Coordenador (Opcional)...</option>
-                  {professores.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome}
-                    </option>
-                  ))}
-                </select>
-                <button type="submit" className="button-primary">
-                  Adicionar curso
-                </button>
-              </form>
-            </section>
-
-            <section className="section-card table-card">
-              <div className="section-heading"><div><h2>Cursos cadastrados</h2></div></div>
-              {cursos.length === 0 ? (
-                <div className="empty-state"><strong>Nenhum curso por aqui</strong>Adicione um curso para começar a organizar a grade.</div>
-              ) : (
-                <div className="table-wrap"><table className="data-table">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3">Código</th>
-                      <th className="px-6 py-3">Nome do Curso</th>
-                      <th className="px-6 py-3">Coordenador do Curso</th>
-                      <th className="px-6 py-3 text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cursos.map((c) => (
-                      <tr key={c.id}>
-                        <td><span className="code-label">{c.codigo}</span></td>
-                        <td><span className="table-primary">{c.nome}</span></td>
-                        <td>
-                          {cursoEditandoId === c.id ? (
-                            <div className="flex items-center gap-2">
-                              <select
-                                value={coordenadorEditId}
-                                onChange={(e) => setCoordenadorEditId(e.target.value)}
-                                className="field-control"
-                              >
-                                <option value="">Sem Coordenador</option>
-                                {professores.map((p) => (
-                                  <option key={p.id} value={p.id}>{p.nome}</option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => handleUpdateCoordenador(c.id)}
-                                className="button-small"
-                              >
-                                Salvar
-                              </button>
-                              <button
-                                onClick={() => setCursoEditandoId(null)}
-                                className="button-small"
-                              >
-                                Cancelar
-                              </button>
-                            </div>
-                          ) : (
-                            c.professores?.nome ? (
-                              <span className="person-chip">
-                                {c.professores.nome}
-                              </span>
-                            ) : (
-                              <span className="muted-text">Não atribuído</span>
-                            )
-                          )}
-                        </td>
-                        <td>
-                          {cursoEditandoId !== c.id && (
-                            <button
-                              onClick={() => {
-                                setCursoEditandoId(c.id)
-                                setCoordenadorEditId(c.coordenador_id || '')
-                              }}
-                              className="button-quiet"
-                            >
-                              Alterar Coordenador
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table></div>
-              )}
-            </section>
-          </>
-        )}
-
-        {/* ABA: PROFESSORES */}
-        {abaAtiva === 'professores' && (
-          <>
-            <header className="page-header">
-              <div>
-                <p className="eyebrow">Equipe acadêmica</p>
-                <h1>Professores</h1>
-                <p className="page-description">Cadastre o corpo docente para alocação de aulas ou coordenação dos cursos.</p>
-              </div>
-              <div className="count-pill">
-                Total <strong>{professores.length}</strong>
-              </div>
-            </header>
-
-            <section className="section-card">
-              <div className="section-heading"><div><h2>Adicionar professor</h2><p>Os dados ficam disponíveis para cursos e alocações.</p></div></div>
-              <form onSubmit={handleAddProfessor} className="form-grid three">
-                <input
-                  type="text"
-                  placeholder="Nome do Professor"
-                  value={nomeProf}
-                  onChange={(e) => setNomeProf(e.target.value)}
-                  className="field-control"
-                  required
-                />
-                <input
-                  type="email"
-                  placeholder="E-mail Institucional"
-                  value={emailProf}
-                  onChange={(e) => setEmailProf(e.target.value)}
-                  className="field-control"
-                  required
-                />
-                <button type="submit" className="button-primary">
-                  Adicionar professor
-                </button>
-              </form>
-            </section>
-
-            <section className="section-card table-card">
-              <div className="section-heading"><div><h2>Corpo docente</h2></div></div>
-              {professores.length === 0 ? (
-                <div className="empty-state"><strong>Nenhum professor cadastrado</strong>Adicione professores para atribuí-los a cursos e aulas.</div>
-              ) : (
-                <div className="table-wrap"><table className="data-table">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3">Nome</th>
-                      <th className="px-6 py-3">E-mail</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {professores.map((p) => (
-                      <tr key={p.id}>
-                        <td><span className="table-primary">{p.nome}</span></td>
-                        <td>{p.email}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table></div>
-              )}
-            </section>
-          </>
-        )}
-
-        {/* ABA: SALAS */}
-        {abaAtiva === 'salas' && (
-          <>
-            <header className="page-header">
-              <div>
-                <p className="eyebrow">Infraestrutura</p>
-                <h1>Salas e laboratórios</h1>
-                <p className="page-description">Cadastre os espaços físicos disponíveis para as atividades acadêmicas.</p>
-              </div>
-              <div className="count-pill">
-                Total <strong>{salas.length}</strong>
-              </div>
-            </header>
-
-            <section className="section-card">
-              <div className="section-heading"><div><h2>Adicionar sala</h2><p>Informe um nome e a capacidade do espaço.</p></div></div>
-              <form onSubmit={handleAddSala} className="form-grid three">
-                <input
-                  type="text"
-                  placeholder="Nome da Sala / Lab (ex: Lab 04)"
-                  value={nomeSala}
-                  onChange={(e) => setNomeSala(e.target.value)}
-                  className="field-control"
-                  required
-                />
-                <input
-                  type="number"
-                  placeholder="Capacidade"
-                  value={capacidadeSala}
-                  onChange={(e) => setCapacidadeSala(e.target.value)}
-                  className="field-control"
-                  required
-                />
-                <button type="submit" className="button-primary">
-                  Adicionar sala
-                </button>
-              </form>
-            </section>
-
-            <section className="section-card table-card">
-              <div className="section-heading"><div><h2>Espaços cadastrados</h2></div></div>
-              {salas.length === 0 ? (
-                <div className="empty-state"><strong>Nenhuma sala cadastrada</strong>Adicione os espaços disponíveis para organizar as aulas.</div>
-              ) : (
-                <div className="table-wrap"><table className="data-table">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3">Identificação</th>
-                      <th className="px-6 py-3">Capacidade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {salas.map((s) => (
-                      <tr key={s.id}>
-                        <td><span className="table-primary">{s.nome}</span></td>
-                        <td className="numeric">{s.capacidade} lugares</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table></div>
-              )}
-            </section>
-          </>
-        )}
-
-        {/* ABA: GRADE HORÁRIA */}
-        {abaAtiva === 'grade' && (
-          <>
-            <header className="page-header">
-              <div>
-                <p className="eyebrow">Visão geral · Planejamento acadêmico</p>
-                <h1>Grade horária</h1>
-                <p className="page-description">Organize disciplinas e horários com validação automática de conflitos.</p>
-              </div>
-              <div className="count-pill">
-                Aulas ativas <strong>{grade.length}</strong>
-              </div>
-            </header>
-
-            <section className="section-card">
-              <div className="section-heading"><div><h2>Adicionar aula</h2><p>Os conflitos de horário são verificados automaticamente.</p></div></div>
-              <form onSubmit={handleAddGrade} className="form-grid three">
-                <select
-                  value={cursoId}
-                  onChange={(e) => setCursoId(e.target.value)}
-                  className="field-control"
-                  required
-                >
-                  <option value="">Selecione o Curso...</option>
-                  {cursos.map(c => <option key={c.id} value={c.id}>{c.nome} ({c.codigo})</option>)}
-                </select>
-
-                <select
-                  value={professorId}
-                  onChange={(e) => setProfessorId(e.target.value)}
-                  className="field-control"
-                  required
-                >
-                  <option value="">Selecione o Professor...</option>
-                  {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-
-                <select
-                  value={salaId}
-                  onChange={(e) => setSalaId(e.target.value)}
-                  className="field-control"
-                  required
-                >
-                  <option value="">Selecione a Sala...</option>
-                  {salas.map(s => <option key={s.id} value={s.id}>{s.nome} (Cap: {s.capacidade})</option>)}
-                </select>
-
-                <input
-                  type="text"
-                  placeholder="Nome da Disciplina (ex: Estrutura de Dados)"
-                  value={disciplina}
-                  onChange={(e) => setDisciplina(e.target.value)}
-                  className="field-control"
-                  required
-                />
-
-                <input
-                  type="text"
-                  placeholder="Período (ex: 2º Período)"
-                  value={periodo}
-                  onChange={(e) => setPeriodo(e.target.value)}
-                  className="field-control"
-                  required
-                />
-
-                <select
-                  value={diaSemana}
-                  onChange={(e) => setDiaSemana(e.target.value)}
-                  className="field-control"
-                  required
-                >
-                  <option value="Segunda-feira">Segunda-feira</option>
-                  <option value="Terça-feira">Terça-feira</option>
-                  <option value="Quarta-feira">Quarta-feira</option>
-                  <option value="Quinta-feira">Quinta-feira</option>
-                  <option value="Sexta-feira">Sexta-feira</option>
-                  <option value="Sábado">Sábado</option>
-                </select>
-
-                <label className="time-field">
-                  <span>Início</span>
-                  <input
-                    type="time"
-                    value={horarioInicio}
-                    onChange={(e) => setHorarioInicio(e.target.value)}
-                    className="field-control"
-                    required
-                  />
-                </label>
-
-                <label className="time-field">
-                  <span>Fim</span>
-                  <input
-                    type="time"
-                    value={horarioFim}
-                    onChange={(e) => setHorarioFim(e.target.value)}
-                    className="field-control"
-                    required
-                  />
-                </label>
-
-                <button type="submit" className="button-primary span-all">
-                  Adicionar à grade
-                </button>
-              </form>
-            </section>
-
-            <section className="section-card table-card">
-              <div className="section-heading"><div><h2>Aulas programadas</h2></div></div>
-              {loading ? (
-                <div className="empty-state">Carregando a grade…</div>
-              ) : grade.length === 0 ? (
-                <div className="empty-state"><strong>A grade ainda está vazia</strong>Cadastre uma aula acima para começar o planejamento.</div>
-              ) : (
-                <div className="table-wrap"><table className="data-table">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3">Dia / Horário</th>
-                      <th className="px-6 py-3">Disciplina & Período</th>
-                      <th className="px-6 py-3">Curso</th>
-                      <th className="px-6 py-3">Professor</th>
-                      <th className="px-6 py-3">Sala</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {grade.map((g) => (
-                      <tr key={g.id}>
-                        <td>
-                          <span className="table-primary">{g.dia_semana}</span>
-                          <span className="table-secondary numeric">{g.horario_inicio.slice(0,5)} – {g.horario_fim.slice(0,5)}</span>
-                        </td>
-                        <td>
-                          <span className="table-primary">{g.disciplina}</span>
-                          <span className="table-secondary">{g.periodo}</span>
-                        </td>
-                        <td>{g.cursos?.nome || '—'}</td>
-                        <td><span className="table-primary">{g.professores?.nome || '—'}</span></td>
-                        <td>{g.salas?.nome || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table></div>
-              )}
-            </section>
-          </>
-        )}
-        <footer className="page-footer"><span>Portal do Professor · Planejamento acadêmico</span><span>Validação de conflitos ativa</span></footer>
-      </main>
-    </div>
-  )
+      {activeView === 'grade' && <>
+        {header('Grade horária', 'Encontros recorrentes no período letivo, com conflitos validados na API.', 'Planejamento integrado', scheduleRows.length)}
+        {section(editingMeeting ? 'Editar horário' : 'Criar horário', 'Conflitos são validados na camada de serviço antes de salvar.', <form className="form-grid three" onSubmit={e => {
+          const offer = selectedOffer()
+          e.preventDefault()
+          if (!offer) { setError('Selecione uma oferta.'); return }
+          submit(e, editingMeeting ? `/horarios/${editingMeeting.id}/` : '/horarios/', { oferta: offer.id, dia_semana: Number(forms.weekday), hora_inicio: forms.start, hora_fim: forms.end, sala_registro: forms.room ? Number(forms.room) : null, sala: '', turma: forms.meetingClass || offer.turma }, editingMeeting ? 'Horário atualizado.' : 'Horário criado.', ['start', 'end']).then(ok => ok && setEditingMeeting(null))
+        }}>
+          <Select value={forms.offerId || ''} onChange={e => set('offerId', e.target.value)} required><option value="">Oferta · disciplina · turma · curso</option>{offers.map(o => <option key={o.id} value={o.id}>{o.codigo_disciplina} · {o.disciplina} · {o.turma} · {o.curso} · {o.periodo}</option>)}</Select>
+          <Select value={forms.weekday} onChange={e => set('weekday', e.target.value)}>{WEEKDAYS.map((day, i) => <option key={day} value={i}>{day}</option>)}</Select>
+          <input className="field-control" type="time" value={forms.start} onChange={e => set('start', e.target.value)} required />
+          <input className="field-control" type="time" value={forms.end} onChange={e => set('end', e.target.value)} required />
+          <Select value={forms.room} onChange={e => set('room', e.target.value)}><option value="">Sem sala</option>{data.salas.map(room => <option key={room.id} value={room.id}>{room.nome}</option>)}</Select>
+          <input className="field-control" placeholder="Turma (usa turma da oferta por padrão)" value={forms.meetingClass} onChange={e => set('meetingClass', e.target.value)} />
+          <div className="form-actions"><button className="button-primary" disabled={busy}>{editingMeeting ? 'Salvar horário' : 'Adicionar horário'}</button>{editingMeeting && <button type="button" className="button-secondary" onClick={() => setEditingMeeting(null)}>Cancelar</button>}</div>
+        </form>)}
+        {section(editingAllocation ? 'Editar alocação docente' : 'Alocar docente', 'A CH atribuída é limitada pela CH total restante da oferta e pela disponibilidade do professor.', <form className="form-grid three" onSubmit={e => {
+          e.preventDefault()
+          const offer = selectedOffer()
+          if (!offer) { setError('Selecione uma oferta.'); return }
+          submit(e, editingAllocation ? `/alocacoes/${editingAllocation.id}/` : '/alocacoes/', { oferta: offer.id, professor: Number(forms.teacherId), ch_alocada: Number(forms.allocatedHours) }, editingAllocation ? 'Alocação atualizada.' : 'Docente alocado.', ['allocatedHours']).then(ok => ok && setEditingAllocation(null))
+        }}>
+          <Select value={forms.offerId || ''} onChange={e => set('offerId', e.target.value)} required><option value="">Oferta</option>{offers.map(o => <option key={o.id} value={o.id}>{o.codigo_disciplina} · {o.disciplina} · turma {o.turma}</option>)}</Select>
+          <Select value={forms.teacherId} onChange={e => set('teacherId', e.target.value)} required><option value="">Professor</option>{data.professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</Select>
+          <input className="field-control" type="number" min="1" placeholder="CH atribuída (h)" value={forms.allocatedHours} onChange={e => set('allocatedHours', e.target.value)} required />
+          <div className="form-actions"><button className="button-primary" disabled={busy}>{editingAllocation ? 'Salvar alocação' : 'Salvar alocação'}</button>{editingAllocation && <button type="button" className="button-secondary" onClick={() => setEditingAllocation(null)}>Cancelar</button>}</div>
+        </form>)}
+        {section('Aulas programadas', 'Professor, turma e sala são checados em intervalos sobrepostos.', table(['Dia', 'Horário', 'Disciplina', 'Curso / turma / período', 'Docentes e CH', 'Sala', 'Ações'], scheduleRows, 'Nenhuma aula programada'))}
+      </>}
+      <footer className="page-footer"><span>Portal do Professor · Dados da API central do planejamento</span><span>Alterações registradas em auditoria</span></footer>
+    </main>
+  </div>
 }
+
+export default App
