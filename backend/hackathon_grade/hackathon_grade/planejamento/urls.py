@@ -1,0 +1,16 @@
+from rest_framework.routers import DefaultRouter
+
+from . import views as v
+
+router = DefaultRouter()
+router.register("cursos", v.CursoViewSet)
+router.register("professores", v.ProfessorViewSet)
+router.register("disciplinas", v.DisciplinaViewSet)
+router.register("periodos", v.PeriodoLetivoViewSet)
+router.register("ofertas", v.OfertaViewSet)
+router.register("participacoes", v.ParticipacaoViewSet)
+router.register("alocacoes", v.AlocacaoViewSet)
+router.register("horarios", v.HorarioViewSet)
+router.register("auditoria", v.AuditLogViewSet)
+
+urlpatterns = router.urls
