@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
+import './App.css'
 
 export default function App() {
   const [abaAtiva, setAbaAtiva] = useState('cursos') // 'cursos', 'professores', 'salas', 'grade'
@@ -177,83 +178,70 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex font-sans text-slate-800">
-      {/* Sidebar Lateral */}
-      <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col p-6 shadow-xl">
-        <div className="mb-8">
-          <h1 className="text-xl font-bold tracking-wide text-indigo-400">
-            Smart Schedule
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">Hackathon 2026 - Gestão CLT & Overlap</p>
-        </div>
-
-        <nav className="flex-1 space-y-2">
+    <div className="app-shell">
+      <header className="topbar">
+        <a className="brand" href="#inicio" onClick={() => setAbaAtiva('grade')}>Smart Schedule</a>
+        <nav className="topbar-nav" aria-label="Navegação principal">
           <button
             onClick={() => setAbaAtiva('cursos')}
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all cursor-pointer ${
-              abaAtiva === 'cursos' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-            }`}
+            className="nav-item"
+            aria-current={abaAtiva === 'cursos' ? 'page' : undefined}
           >
-            📚 Cursos & Coordenadores
+            Cursos
           </button>
 
           <button
             onClick={() => setAbaAtiva('professores')}
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all cursor-pointer ${
-              abaAtiva === 'professores' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-            }`}
+            className="nav-item"
+            aria-current={abaAtiva === 'professores' ? 'page' : undefined}
           >
-            👨‍🏫 Professores
+            Professores
           </button>
 
           <button
             onClick={() => setAbaAtiva('salas')}
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all cursor-pointer ${
-              abaAtiva === 'salas' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-            }`}
+            className="nav-item"
+            aria-current={abaAtiva === 'salas' ? 'page' : undefined}
           >
-            🏛️ Salas & Lab
+            Salas e laboratórios
           </button>
 
           <button
             onClick={() => setAbaAtiva('grade')}
-            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all cursor-pointer ${
-              abaAtiva === 'grade' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-            }`}
+            className="nav-item"
+            aria-current={abaAtiva === 'grade' ? 'page' : undefined}
           >
-            🗓️ Grade Horária
+            Grade horária
           </button>
         </nav>
-
-        <div className="pt-6 border-t border-slate-800 text-xs text-slate-500">
-          Base de Dados: <span className="text-emerald-400 font-semibold">PostgreSQL (GIST Ativo)</span>
-        </div>
-      </aside>
+        <div className="topbar-status">Hackathon 2026 · <span>GIST ativo</span></div>
+      </header>
 
       {/* Conteúdo Principal */}
-      <main className="flex-1 p-8 overflow-y-auto">
+      <main className="page-content">
         {/* ABA: CURSOS */}
         {abaAtiva === 'cursos' && (
           <>
-            <header className="mb-8 flex justify-between items-center">
+            <header className="page-header">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Gestão de Cursos & Coordenadores</h2>
-                <p className="text-sm text-slate-500">Cadastre os cursos institucionais e altere os coordenadores quando necessário.</p>
+                <p className="eyebrow">Planejamento acadêmico</p>
+                <h1>Cursos e coordenadores</h1>
+                <p className="page-description">Cadastre os cursos institucionais e atualize as pessoas responsáveis por cada formação.</p>
               </div>
-              <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm font-semibold text-slate-700">
-                Total: <span className="text-indigo-600">{cursos.length}</span>
+              <div className="count-pill">
+                Total <strong>{cursos.length}</strong>
               </div>
             </header>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Adicionar Novo Curso</h3>
-              <form onSubmit={handleAddCurso} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <section className="section-card">
+              <div className="section-heading"><div><h2>Adicionar curso</h2><p>Inclua o curso e, se desejar, atribua um coordenador.</p></div></div>
+              <form onSubmit={handleAddCurso} className="form-grid">
                 <input
                   type="text"
                   placeholder="Nome do Curso (ex: Engenharia de Software)"
                   value={novoCurso}
                   onChange={(e) => setNovoCurso(e.target.value)}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:col-span-1"
+                  className="field-control"
                   required
                 />
                 <input
@@ -261,13 +249,13 @@ export default function App() {
                   placeholder="Código (ex: ES01)"
                   value={novoCodigo}
                   onChange={(e) => setNovoCodigo(e.target.value)}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:col-span-1"
+                  className="field-control"
                   required
                 />
                 <select
                   value={coordenadorId}
                   onChange={(e) => setCoordenadorId(e.target.value)}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:col-span-1"
+                  className="field-control"
                 >
                   <option value="">Selecione o Coordenador (Opcional)...</option>
                   {professores.map((p) => (
@@ -276,40 +264,38 @@ export default function App() {
                     </option>
                   ))}
                 </select>
-                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-lg shadow-sm text-sm cursor-pointer md:col-span-1">
-                  Salvar Curso
+                <button type="submit" className="button-primary">
+                  Adicionar curso
                 </button>
               </form>
-            </div>
+            </section>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100">
-                <h3 className="text-lg font-semibold text-slate-800">Cursos Registados</h3>
-              </div>
+            <section className="section-card table-card">
+              <div className="section-heading"><div><h2>Cursos cadastrados</h2></div></div>
               {cursos.length === 0 ? (
-                <div className="p-8 text-center text-slate-400">Nenhum curso cadastrado ainda.</div>
+                <div className="empty-state"><strong>Nenhum curso por aqui</strong>Adicione um curso para começar a organizar a grade.</div>
               ) : (
-                <table className="w-full text-left border-collapse">
+                <div className="table-wrap"><table className="data-table">
                   <thead>
-                    <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                    <tr>
                       <th className="px-6 py-3">Código</th>
                       <th className="px-6 py-3">Nome do Curso</th>
                       <th className="px-6 py-3">Coordenador do Curso</th>
                       <th className="px-6 py-3 text-right">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
+                  <tbody>
                     {cursos.map((c) => (
-                      <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4 font-mono font-medium text-indigo-600">{c.codigo}</td>
-                        <td className="px-6 py-4 text-slate-800 font-medium">{c.nome}</td>
-                        <td className="px-6 py-4 text-slate-600 font-medium">
+                      <tr key={c.id}>
+                        <td><span className="code-label">{c.codigo}</span></td>
+                        <td><span className="table-primary">{c.nome}</span></td>
+                        <td>
                           {cursoEditandoId === c.id ? (
                             <div className="flex items-center gap-2">
                               <select
                                 value={coordenadorEditId}
                                 onChange={(e) => setCoordenadorEditId(e.target.value)}
-                                className="px-3 py-1.5 rounded-lg border border-indigo-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                                className="field-control"
                               >
                                 <option value="">Sem Coordenador</option>
                                 {professores.map((p) => (
@@ -318,35 +304,35 @@ export default function App() {
                               </select>
                               <button
                                 onClick={() => handleUpdateCoordenador(c.id)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
+                                className="button-small"
                               >
                                 Salvar
                               </button>
                               <button
                                 onClick={() => setCursoEditandoId(null)}
-                                className="bg-slate-300 hover:bg-slate-400 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
+                                className="button-small"
                               >
                                 Cancelar
                               </button>
                             </div>
                           ) : (
                             c.professores?.nome ? (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                                👨‍💼 {c.professores.nome}
+                              <span className="person-chip">
+                                {c.professores.nome}
                               </span>
                             ) : (
-                              <span className="text-slate-400 italic text-xs">Não atribuído</span>
+                              <span className="muted-text">Não atribuído</span>
                             )
                           )}
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td>
                           {cursoEditandoId !== c.id && (
                             <button
                               onClick={() => {
                                 setCursoEditandoId(c.id)
                                 setCoordenadorEditId(c.coordenador_id || '')
                               }}
-                              className="text-indigo-600 hover:text-indigo-800 font-medium text-xs bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                              className="button-quiet"
                             >
                               Alterar Coordenador
                             </button>
@@ -355,34 +341,35 @@ export default function App() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
-            </div>
+            </section>
           </>
         )}
 
         {/* ABA: PROFESSORES */}
         {abaAtiva === 'professores' && (
           <>
-            <header className="mb-8 flex justify-between items-center">
+            <header className="page-header">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Gestão de Professores</h2>
-                <p className="text-sm text-slate-500">Cadastre o corpo docente para alocação de aulas ou coordenação.</p>
+                <p className="eyebrow">Equipe acadêmica</p>
+                <h1>Professores</h1>
+                <p className="page-description">Cadastre o corpo docente para alocação de aulas ou coordenação dos cursos.</p>
               </div>
-              <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm font-semibold text-slate-700">
-                Total: <span className="text-indigo-600">{professores.length}</span>
+              <div className="count-pill">
+                Total <strong>{professores.length}</strong>
               </div>
             </header>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Adicionar Novo Professor</h3>
-              <form onSubmit={handleAddProfessor} className="flex flex-col md:flex-row gap-4">
+            <section className="section-card">
+              <div className="section-heading"><div><h2>Adicionar professor</h2><p>Os dados ficam disponíveis para cursos e alocações.</p></div></div>
+              <form onSubmit={handleAddProfessor} className="form-grid three">
                 <input
                   type="text"
                   placeholder="Nome do Professor"
                   value={nomeProf}
                   onChange={(e) => setNomeProf(e.target.value)}
-                  className="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 />
                 <input
@@ -390,65 +377,64 @@ export default function App() {
                   placeholder="E-mail Institucional"
                   value={emailProf}
                   onChange={(e) => setEmailProf(e.target.value)}
-                  className="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 />
-                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-lg shadow-sm text-sm cursor-pointer">
-                  Salvar Professor
+                <button type="submit" className="button-primary">
+                  Adicionar professor
                 </button>
               </form>
-            </div>
+            </section>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100">
-                <h3 className="text-lg font-semibold text-slate-800">Professores Registados</h3>
-              </div>
+            <section className="section-card table-card">
+              <div className="section-heading"><div><h2>Corpo docente</h2></div></div>
               {professores.length === 0 ? (
-                <div className="p-8 text-center text-slate-400">Nenhum professor cadastrado ainda.</div>
+                <div className="empty-state"><strong>Nenhum professor cadastrado</strong>Adicione professores para atribuí-los a cursos e aulas.</div>
               ) : (
-                <table className="w-full text-left border-collapse">
+                <div className="table-wrap"><table className="data-table">
                   <thead>
-                    <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                    <tr>
                       <th className="px-6 py-3">Nome</th>
                       <th className="px-6 py-3">E-mail</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
+                  <tbody>
                     {professores.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4 text-slate-800 font-medium">{p.nome}</td>
-                        <td className="px-6 py-4 text-slate-600">{p.email}</td>
+                      <tr key={p.id}>
+                        <td><span className="table-primary">{p.nome}</span></td>
+                        <td>{p.email}</td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
-            </div>
+            </section>
           </>
         )}
 
         {/* ABA: SALAS */}
         {abaAtiva === 'salas' && (
           <>
-            <header className="mb-8 flex justify-between items-center">
+            <header className="page-header">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Gestão de Salas e Laboratórios</h2>
-                <p className="text-sm text-slate-500">Cadastre os espaços físicos disponíveis.</p>
+                <p className="eyebrow">Infraestrutura</p>
+                <h1>Salas e laboratórios</h1>
+                <p className="page-description">Cadastre os espaços físicos disponíveis para as atividades acadêmicas.</p>
               </div>
-              <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm font-semibold text-slate-700">
-                Total: <span className="text-indigo-600">{salas.length}</span>
+              <div className="count-pill">
+                Total <strong>{salas.length}</strong>
               </div>
             </header>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Adicionar Nova Sala</h3>
-              <form onSubmit={handleAddSala} className="flex flex-col md:flex-row gap-4">
+            <section className="section-card">
+              <div className="section-heading"><div><h2>Adicionar sala</h2><p>Informe um nome e a capacidade do espaço.</p></div></div>
+              <form onSubmit={handleAddSala} className="form-grid three">
                 <input
                   type="text"
                   placeholder="Nome da Sala / Lab (ex: Lab 04)"
                   value={nomeSala}
                   onChange={(e) => setNomeSala(e.target.value)}
-                  className="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 />
                 <input
@@ -456,63 +442,62 @@ export default function App() {
                   placeholder="Capacidade"
                   value={capacidadeSala}
                   onChange={(e) => setCapacidadeSala(e.target.value)}
-                  className="w-full md:w-40 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 />
-                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-lg shadow-sm text-sm cursor-pointer">
-                  Salvar Sala
+                <button type="submit" className="button-primary">
+                  Adicionar sala
                 </button>
               </form>
-            </div>
+            </section>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100">
-                <h3 className="text-lg font-semibold text-slate-800">Salas Registadas</h3>
-              </div>
+            <section className="section-card table-card">
+              <div className="section-heading"><div><h2>Espaços cadastrados</h2></div></div>
               {salas.length === 0 ? (
-                <div className="p-8 text-center text-slate-400">Nenhuma sala cadastrada ainda.</div>
+                <div className="empty-state"><strong>Nenhuma sala cadastrada</strong>Adicione os espaços disponíveis para organizar as aulas.</div>
               ) : (
-                <table className="w-full text-left border-collapse">
+                <div className="table-wrap"><table className="data-table">
                   <thead>
-                    <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                    <tr>
                       <th className="px-6 py-3">Identificação</th>
                       <th className="px-6 py-3">Capacidade</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
+                  <tbody>
                     {salas.map((s) => (
-                      <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4 text-slate-800 font-medium">{s.nome}</td>
-                        <td className="px-6 py-4 text-slate-600 font-mono">{s.capacidade} alunos</td>
+                      <tr key={s.id}>
+                        <td><span className="table-primary">{s.nome}</span></td>
+                        <td className="numeric">{s.capacidade} lugares</td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
-            </div>
+            </section>
           </>
         )}
 
         {/* ABA: GRADE HORÁRIA */}
         {abaAtiva === 'grade' && (
           <>
-            <header className="mb-8 flex justify-between items-center">
+            <header className="page-header">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Grade Horária & Validação de Conflitos</h2>
-                <p className="text-sm text-slate-500">Alocar disciplinas prevenindo sobreposição de professores em tempo real.</p>
+                <p className="eyebrow">Visão geral · Planejamento acadêmico</p>
+                <h1>Grade horária</h1>
+                <p className="page-description">Organize disciplinas e horários com validação automática de conflitos.</p>
               </div>
-              <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm font-semibold text-slate-700">
-                Alocações Ativas: <span className="text-indigo-600">{grade.length}</span>
+              <div className="count-pill">
+                Aulas ativas <strong>{grade.length}</strong>
               </div>
             </header>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Registar Nova Aula (Validação Automática GIST)</h3>
-              <form onSubmit={handleAddGrade} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <section className="section-card">
+              <div className="section-heading"><div><h2>Adicionar aula</h2><p>Os conflitos de horário são verificados automaticamente.</p></div></div>
+              <form onSubmit={handleAddGrade} className="form-grid three">
                 <select
                   value={cursoId}
                   onChange={(e) => setCursoId(e.target.value)}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 >
                   <option value="">Selecione o Curso...</option>
@@ -522,7 +507,7 @@ export default function App() {
                 <select
                   value={professorId}
                   onChange={(e) => setProfessorId(e.target.value)}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 >
                   <option value="">Selecione o Professor...</option>
@@ -532,7 +517,7 @@ export default function App() {
                 <select
                   value={salaId}
                   onChange={(e) => setSalaId(e.target.value)}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 >
                   <option value="">Selecione a Sala...</option>
@@ -544,7 +529,7 @@ export default function App() {
                   placeholder="Nome da Disciplina (ex: Estrutura de Dados)"
                   value={disciplina}
                   onChange={(e) => setDisciplina(e.target.value)}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 />
 
@@ -553,14 +538,14 @@ export default function App() {
                   placeholder="Período (ex: 2º Período)"
                   value={periodo}
                   onChange={(e) => setPeriodo(e.target.value)}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 />
 
                 <select
                   value={diaSemana}
                   onChange={(e) => setDiaSemana(e.target.value)}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="field-control"
                   required
                 >
                   <option value="Segunda-feira">Segunda-feira</option>
@@ -571,46 +556,44 @@ export default function App() {
                   <option value="Sábado">Sábado</option>
                 </select>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 font-medium">Início:</span>
+                <label className="time-field">
+                  <span>Início</span>
                   <input
                     type="time"
                     value={horarioInicio}
                     onChange={(e) => setHorarioInicio(e.target.value)}
-                    className="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    className="field-control"
                     required
                   />
-                </div>
+                </label>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 font-medium">Fim:</span>
+                <label className="time-field">
+                  <span>Fim</span>
                   <input
                     type="time"
                     value={horarioFim}
                     onChange={(e) => setHorarioFim(e.target.value)}
-                    className="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    className="field-control"
                     required
                   />
-                </div>
+                </label>
 
-                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-lg shadow-sm text-sm cursor-pointer md:col-span-3">
-                  Alocar Horário com Validação de Conflito
+                <button type="submit" className="button-primary span-all">
+                  Adicionar à grade
                 </button>
               </form>
-            </div>
+            </section>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100">
-                <h3 className="text-lg font-semibold text-slate-800">Grade Alocada Atual</h3>
-              </div>
+            <section className="section-card table-card">
+              <div className="section-heading"><div><h2>Aulas programadas</h2></div></div>
               {loading ? (
-                <div className="p-8 text-center text-slate-400">A carregar grade...</div>
+                <div className="empty-state">Carregando a grade…</div>
               ) : grade.length === 0 ? (
-                <div className="p-8 text-center text-slate-400">Nenhuma aula alocada na grade ainda.</div>
+                <div className="empty-state"><strong>A grade ainda está vazia</strong>Cadastre uma aula acima para começar o planejamento.</div>
               ) : (
-                <table className="w-full text-left border-collapse">
+                <div className="table-wrap"><table className="data-table">
                   <thead>
-                    <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                    <tr>
                       <th className="px-6 py-3">Dia / Horário</th>
                       <th className="px-6 py-3">Disciplina & Período</th>
                       <th className="px-6 py-3">Curso</th>
@@ -618,28 +601,29 @@ export default function App() {
                       <th className="px-6 py-3">Sala</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
+                  <tbody>
                     {grade.map((g) => (
-                      <tr key={g.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4">
-                          <span className="font-semibold text-slate-800">{g.dia_semana}</span>
-                          <div className="text-xs font-mono text-indigo-600">{g.horario_inicio.slice(0,5)} - {g.horario_fim.slice(0,5)}</div>
+                      <tr key={g.id}>
+                        <td>
+                          <span className="table-primary">{g.dia_semana}</span>
+                          <span className="table-secondary numeric">{g.horario_inicio.slice(0,5)} – {g.horario_fim.slice(0,5)}</span>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className="font-medium text-slate-900">{g.disciplina}</span>
-                          <div className="text-xs text-slate-500">{g.periodo}</div>
+                        <td>
+                          <span className="table-primary">{g.disciplina}</span>
+                          <span className="table-secondary">{g.periodo}</span>
                         </td>
-                        <td className="px-6 py-4 text-slate-700">{g.cursos?.nome || '—'}</td>
-                        <td className="px-6 py-4 text-slate-700 font-medium">{g.professores?.nome || '—'}</td>
-                        <td className="px-6 py-4 text-slate-600 font-mono">{g.salas?.nome || '—'}</td>
+                        <td>{g.cursos?.nome || '—'}</td>
+                        <td><span className="table-primary">{g.professores?.nome || '—'}</span></td>
+                        <td>{g.salas?.nome || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
-            </div>
+            </section>
           </>
         )}
+        <footer className="page-footer"><span>Smart Schedule · Planejamento acadêmico</span><span>Validação de conflitos ativa</span></footer>
       </main>
     </div>
   )
