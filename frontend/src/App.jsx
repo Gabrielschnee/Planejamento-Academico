@@ -180,7 +180,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="#inicio" onClick={() => setAbaAtiva('grade')}>Smart Schedule</a>
+        <a className="brand" href="#inicio" onClick={() => setAbaAtiva('grade')}>Portal do Professor</a>
         <nav className="topbar-nav" aria-label="Navegação principal">
           <button
             onClick={() => setAbaAtiva('cursos')}
@@ -623,7 +623,7 @@ export default function App() {
             </section>
           </>
         )}
-        <footer className="page-footer"><span>Smart Schedule · Planejamento acadêmico</span><span>Validação de conflitos ativa</span></footer>
+        <footer className="page-footer"><span>Portal do Professor · Planejamento acadêmico</span><span>Validação de conflitos ativa</span></footer>
       </main>
     </div>
   )
