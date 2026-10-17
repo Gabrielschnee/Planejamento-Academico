@@ -38,7 +38,7 @@
   align-items: center;
   gap: 10px;
   color: #fff;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.25px;
   text-decoration: none;
@@ -68,7 +68,7 @@
   color: #b8b8bd;
   background: transparent;
   cursor: pointer;
-  font: 400 12px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font: 400 14px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   letter-spacing: -0.12px;
   white-space: nowrap;
   transition: color 160ms ease;
@@ -94,7 +94,7 @@
 .topbar-status {
   flex: 0 0 auto;
   color: #a1a1a6;
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
