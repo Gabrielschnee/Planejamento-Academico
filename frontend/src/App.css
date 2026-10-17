@@ -33,12 +33,23 @@
 }
 
 .brand {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
   color: #fff;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.12px;
+  letter-spacing: -0.25px;
   text-decoration: none;
+}
+
+.brand-mark {
+  display: block;
+  width: 34px;
+  height: 28px;
+  flex: 0 0 auto;
+  color: #53c5b5;
 }
 
 .topbar-nav {

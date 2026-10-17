@@ -180,7 +180,14 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="#inicio" onClick={() => setAbaAtiva('grade')}>Portal do Professor</a>
+        <a className="brand" href="#inicio" onClick={() => setAbaAtiva('grade')}>
+          <svg className="brand-mark" viewBox="0 0 56 44" aria-hidden="true" focusable="false">
+            <path d="M3 39 23 14l8 25H3Z" fill="currentColor" />
+            <path d="m18 39 17-31 9 31H18Z" fill="currentColor" opacity=".78" />
+            <path d="m31 39 12-22 10 22H31Z" fill="currentColor" opacity=".58" />
+          </svg>
+          <span>Portal do Professor</span>
+        </a>
         <nav className="topbar-nav" aria-label="Navegação principal">
           <button
             onClick={() => setAbaAtiva('cursos')}
