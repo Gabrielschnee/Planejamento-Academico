@@ -1,8 +1,8 @@
 :root {
-  --brand-green: #007f70;
-  --brand-green-dark: #006b60;
-  --brand-green-soft: #e6f3f1;
-  --brand-green-focus: #009786;
+  --brand-green: #2479D0;
+  --brand-green-dark: #1E6DBA;
+  --brand-green-soft: #eaf3ff;
+  --brand-green-focus: #3A8EEB;
   --ink: #252525;
   --muted: #77777a;
   --canvas: #f4f4f4;
@@ -50,7 +50,7 @@
   width: 34px;
   height: 28px;
   flex: 0 0 auto;
-  color: #53c5b5;
+  color: #5aa7f7;
 }
 
 .topbar-nav {
@@ -84,7 +84,7 @@
   position: absolute;
   height: 2px;
   align-self: flex-end;
-  background: #13b8a6;
+  background: #5aa7f7;
   content: "";
   transform: translateY(-7px);
 }
