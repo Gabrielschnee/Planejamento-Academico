@@ -5,7 +5,6 @@ from django.db import transaction
 from django.db.models import Q
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
@@ -15,32 +14,16 @@ from .models import (AlocacaoProfessor, AuditLog, Curso, Disciplina, HorarioAula
 from .services import resumo_carga, resumo_planejamento
 
 
-def pode_editar(user, curso_responsavel):
-    """Cada curso edita apenas as ofertas pelas quais é responsável (staff edita tudo)."""
-    return user.is_staff or curso_responsavel.coordenador_id == user.id
-
-
 class AuditedViewSet(viewsets.ModelViewSet):
-    """Toda escrita é auditada (antes/depois), autorizada e transacional."""
-
-    def curso_de(self, obj):
-        """Curso responsável que controla a escrita. Cadastros básicos retornam None (só staff)."""
-        return None
+    """Escritas públicas são auditadas (antes/depois) e transacionais."""
 
     def _snap(self, inst):
         return json.loads(json.dumps(self.get_serializer(inst).data, default=str))
 
     def _log(self, acao, inst, dados):
-        AuditLog.objects.create(usuario=self.request.user, acao=acao, modelo=inst._meta.label,
-                                objeto_id=str(inst.pk), objeto_repr=str(inst)[:200], dados=dados)
-
-    def _autorizar(self, curso):
         user = self.request.user
-        if curso is None:
-            if not user.is_staff:
-                raise PermissionDenied("Apenas administradores alteram este cadastro.")
-        elif not pode_editar(user, curso):
-            raise PermissionDenied("Apenas o coordenador do curso responsável pode alterar esta oferta.")
+        AuditLog.objects.create(usuario=user if user.is_authenticated else None, acao=acao, modelo=inst._meta.label,
+                                objeto_id=str(inst.pk), objeto_repr=str(inst)[:200], dados=dados)
 
     def _bloquear_regras(self, obj):
         """Serializa escritas do mesmo período/docente em bancos com suporte a row locks."""
@@ -62,17 +45,12 @@ class AuditedViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def perform_create(self, serializer):
         validated = serializer.validated_data
-        self._autorizar(self.curso_de(validated))
         self._bloquear_regras(validated)
         inst = serializer.save()
         self._log("CRIAR", inst, {"depois": self._snap(inst)})
 
     @transaction.atomic
     def perform_update(self, serializer):
-        self._autorizar(self.curso_de(serializer.instance))
-        destino = self.curso_de(serializer.validated_data)
-        if destino is not None and destino.pk != self.curso_de(serializer.instance).pk:
-            self._autorizar(destino)
         self._bloquear_regras(serializer.instance)
         self._bloquear_regras(serializer.validated_data)
         antes = self._snap(serializer.instance)
@@ -81,7 +59,6 @@ class AuditedViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_destroy(self, instance):
-        self._autorizar(self.curso_de(instance))
         antes = self._snap(instance)
         self._log("EXCLUIR", instance, {"antes": antes})
         instance.delete()
@@ -137,31 +114,19 @@ class OfertaViewSet(AuditedViewSet):
     filterset_fields = ["periodo", "curso_responsavel", "cursos", "tipo", "disciplina", "alocacoes__professor"]
     search_fields = ["disciplina__nome", "disciplina__codigo", "turma"]
 
-    def curso_de(self, obj):
-        return obj.get("curso_responsavel") if isinstance(obj, dict) else obj.curso_responsavel
-
-
-class _FilhoOfertaViewSet(AuditedViewSet):
-    def curso_de(self, obj):
-        oferta = obj.get("oferta") if isinstance(obj, dict) else obj.oferta
-        if oferta is None:
-            return None
-        return oferta.curso_responsavel
-
-
-class ParticipacaoViewSet(_FilhoOfertaViewSet):
+class ParticipacaoViewSet(AuditedViewSet):
     queryset = ParticipacaoCurso.objects.select_related("oferta__curso_responsavel", "curso")
     serializer_class = s.ParticipacaoCursoSerializer
     filterset_fields = ["oferta", "curso"]
 
 
-class AlocacaoViewSet(_FilhoOfertaViewSet):
+class AlocacaoViewSet(AuditedViewSet):
     queryset = AlocacaoProfessor.objects.select_related("oferta__curso_responsavel", "professor")
     serializer_class = s.AlocacaoProfessorSerializer
     filterset_fields = ["oferta", "professor", "oferta__periodo"]
 
 
-class HorarioViewSet(_FilhoOfertaViewSet):
+class HorarioViewSet(AuditedViewSet):
     queryset = HorarioAula.objects.select_related("oferta__curso_responsavel")
     serializer_class = s.HorarioAulaSerializer
     filterset_fields = ["oferta", "dia_semana", "sala", "oferta__periodo"]
@@ -207,10 +172,3 @@ class CoordenadorViewSet(viewsets.ViewSet):
                                     Q(cursos_coordenados__isnull=False)).distinct()
         return Response([{"id": user.pk, "nome": user.get_full_name() or user.get_username(),
                           "username": user.get_username()} for user in users])
-
-
-class SessaoViewSet(viewsets.ViewSet):
-    def list(self, request):
-        user = request.user
-        return Response({"id": user.pk, "username": user.get_username(), "is_staff": user.is_staff,
-                         "cursos_coordenados": list(user.cursos_coordenados.values_list("id", flat=True))})

@@ -1,9 +1,8 @@
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
-export async function api(path, { method = 'GET', body, token } = {}) {
+export async function api(path, { method = 'GET', body } = {}) {
   const headers = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  if (token) headers.Authorization = `Token ${token}`
 
   const response = await fetch(`${API_BASE}${path}`, {
     method,
@@ -27,9 +26,7 @@ export function allPages(path, options) {
     let next = first?.next
     while (next) {
       const nextUrl = new URL(next, window.location.origin)
-      const response = await fetch(`${API_BASE}${nextUrl.pathname.replace(/^\/api/, '')}${nextUrl.search}`, {
-        headers: options?.token ? { Authorization: `Token ${options.token}` } : {},
-      })
+      const response = await fetch(`${API_BASE}${nextUrl.pathname.replace(/^\/api/, '')}${nextUrl.search}`)
       const page = await response.json()
       if (!response.ok) throw new Error('Não foi possível carregar todos os registros.')
       results.push(...(page.results || []))

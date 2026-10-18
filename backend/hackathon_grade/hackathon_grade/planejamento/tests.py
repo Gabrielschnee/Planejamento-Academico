@@ -39,15 +39,12 @@ class FluxoTest(APITestCase):
         r = self.client.post("/api/alocacoes/", {"oferta": o2.pk, "professor": self.prof.pk, "ch_alocada": 60})
         self.assertEqual(r.status_code, 400)
 
-    def test_permissao_e_auditoria(self):
+    def test_acesso_publico_e_auditoria_anonima(self):
         o1 = self.oferta(self.d1, self.c1)
-        self.client.force_authenticate(self.c2u)
-        r = self.client.post("/api/horarios/", {"oferta": o1.pk, "dia_semana": 1, "hora_inicio": "08:00", "hora_fim": "10:00"})
-        self.assertEqual(r.status_code, 403)
-        self.client.force_authenticate(self.c1u)
         r = self.client.post("/api/horarios/", {"oferta": o1.pk, "dia_semana": 1, "hora_inicio": "08:00", "hora_fim": "10:00"})
         self.assertEqual(r.status_code, 201)
         self.assertEqual(AuditLog.objects.filter(acao="CRIAR").count(), 1)
+        self.assertIsNone(AuditLog.objects.get(acao="CRIAR").usuario)
 
     def test_apropriacao_separada(self):
         o1 = self.oferta(self.d1, self.c1)
@@ -192,12 +189,11 @@ class IntegridadeCentralTest(FluxoTest):
         self.assertEqual(depois["indicadores"]["carga_docente_atribuida_h"], 45)
         self.assertEqual(depois["ofertas"][0]["alocacoes"][0]["ch_alocada"], 45)
 
-    def test_coordenador_nao_pode_mover_horario_para_curso_de_outro(self):
+    def test_acesso_publico_pode_mover_horario_entre_cursos(self):
         oferta_1, oferta_2 = self.oferta(self.d1, self.c1), self.oferta(self.d2, self.c2)
         horario = HorarioAula.objects.create(oferta=oferta_1, dia_semana=0,
                                              hora_inicio=time(8), hora_fim=time(10))
-        self.client.force_authenticate(self.c1u)
         response = self.client.patch(f"/api/horarios/{horario.pk}/", {"oferta": oferta_2.pk})
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
         horario.refresh_from_db()
-        self.assertEqual(horario.oferta_id, oferta_1.pk)
+        self.assertEqual(horario.oferta_id, oferta_2.pk)

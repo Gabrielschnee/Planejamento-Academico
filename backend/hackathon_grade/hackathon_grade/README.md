@@ -20,7 +20,7 @@ npm install
 npm run dev
 ```
 
-Abra `http://localhost:5173`. O Vite encaminha `/api` para `http://127.0.0.1:8000`. Entre com a conta criada pelo Django. Cadastros básicos (professores, disciplinas, cursos, períodos e salas) exigem uma conta staff; coordenadores vinculados a usuários podem manter as ofertas do próprio curso. Associe usuários a professores e cursos pelo Django Admin quando necessário.
+Abra `http://localhost:5173`. O Vite encaminha `/api` para `http://127.0.0.1:8000`. O portal não exige login. **Todas as pessoas que acessarem o portal ou a API podem consultar, criar, editar e excluir os dados acadêmicos.** Não publique este serviço com dados reais sem adicionar autenticação e controle de acesso.
 
 ## Modelo central
 
@@ -51,7 +51,7 @@ O banco local padrão é SQLite, útil para desenvolvimento individual. `select_
 
 `/api/cursos/`, `/api/professores/`, `/api/disciplinas/`, `/api/periodos/`, `/api/turmas/`, `/api/salas/`, `/api/ofertas/`, `/api/participacoes/`, `/api/alocacoes/`, `/api/horarios/`, `/api/painel/` e `/api/auditoria/`.
 
-Obtenha token via `POST /api/auth/token/` com `username` e `password`; envie `Authorization: Token <token>`. O painel aceita filtros `periodo`, `curso`, `professor`, `disciplina` e `unidade`.
+As rotas de dados não exigem autenticação. O painel aceita filtros `periodo`, `curso`, `professor`, `disciplina` e `unidade`. A auditoria permanece restrita a administradores Django.
 
 ## Dados existentes e importação
 

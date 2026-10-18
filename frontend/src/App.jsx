@@ -7,30 +7,7 @@ const VIEWS = [
   ['disciplinas', 'Disciplinas'], ['salas', 'Salas e laboratórios'], ['grade', 'Grade horária'],
 ]
 const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
-const emptyData = { cursos: [], professores: [], disciplinas: [], periodos: [], ofertas: [], salas: [], coordenadores: [], sessao: null, indicadores: {} }
-
-function Login({ onLogin, error }) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-  async function submit(event) {
-    event.preventDefault()
-    setBusy(true)
-    try { await onLogin(username, password) } finally { setBusy(false) }
-  }
-  return <main className="login-page">
-    <form className="login-card" onSubmit={submit}>
-      <Brand />
-      <p className="eyebrow">Acesso seguro</p>
-      <h1>Entre no portal</h1>
-      <p className="page-description">Use sua conta de coordenação ou administração acadêmica.</p>
-      {error && <div className="notice error" role="alert">{error}</div>}
-      <label className="login-label">Usuário<input className="field-control" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required /></label>
-      <label className="login-label">Senha<input className="field-control" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
-      <button className="button-primary" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
-    </form>
-  </main>
-}
+const emptyData = { cursos: [], professores: [], disciplinas: [], periodos: [], ofertas: [], salas: [], coordenadores: [], indicadores: {} }
 
 function Brand() {
   return <a className="brand" href="#inicio">
@@ -53,11 +30,8 @@ function Stat({ label, value, detail, onClick }) {
 }
 
 function App() {
-  const [token, setToken] = useState(() => localStorage.getItem('portal-token') || '')
-  const [loginError, setLoginError] = useState('')
   const [activeView, setActiveView] = useState('painel')
   const [data, setData] = useState(emptyData)
-  const [filters, setFilters] = useState({ periodo: '', curso: '', professor: '', disciplina: '', unidade: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -65,52 +39,34 @@ function App() {
   const [editingCourse, setEditingCourse] = useState(null)
   const [editingMeeting, setEditingMeeting] = useState(null)
   const [editingAllocation, setEditingAllocation] = useState(null)
-  const [forms, setForms] = useState({ courseName: '', courseCode: '', unit: '', modality: '', coordinatorId: '', teacherLink: '', teacherLimit: '', professorName: '', professorEmail: '', teacherId: '', subjectId: '', subjectCode: '', subjectName: '', subjectHours: '', periodId: '', periodYear: '', periodSemester: '1', periodStart: '', periodEnd: '', className: 'A', classPeriod: '', offerHours: '', responsibleCourse: '', participationCourse: '', appropriationHours: '', roomName: '', roomCapacity: '', room: '', weekday: '0', start: '', end: '', allocatedHours: '', meetingClass: '', offerId: '', offerSubject: '' })
+  const [forms, setForms] = useState({ courseName: '', courseCode: '', unit: '', modality: '', coordinatorId: '', teacherLink: '', teacherLimit: '', professorName: '', professorEmail: '', teacherId: '', subjectId: '', subjectCode: '', subjectName: '', subjectHours: '', periodId: '', className: 'A', classPeriod: '', offerHours: '', responsibleCourse: '', participationCourse: '', appropriationHours: '', roomName: '', roomCapacity: '', room: '', weekday: '0', start: '', end: '', allocatedHours: '', meetingClass: '', offerId: '', offerSubject: '' })
   const set = (name, value) => setForms(current => ({ ...current, [name]: value }))
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('portal-token')
-    setToken('')
-    setData(emptyData)
-  }, [])
-
-  const loadData = useCallback(async (currentToken, currentFilters = filters) => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     setError('')
-    const query = new URLSearchParams(Object.entries(currentFilters).filter(([, value]) => value))
     try {
-      const [dashboard, rooms, coordinators, session] = await Promise.all([
-        api(`/painel/${query.size ? `?${query}` : ''}`, { token: currentToken }),
-        allPages('/salas/', { token: currentToken }),
-        allPages('/coordenadores/', { token: currentToken }),
-        api('/sessao/', { token: currentToken }),
+      const [dashboard, rooms, coordinators] = await Promise.all([
+        api('/painel/'),
+        allPages('/salas/'),
+        allPages('/coordenadores/'),
       ])
-      setData({ ...dashboard, salas: rooms, coordenadores: coordinators, sessao: session })
+      setData({ ...dashboard, salas: rooms, coordenadores: coordinators })
     } catch (e) {
-      if (/401|403|credenciais|token/i.test(e.message)) logout()
       setError(e.message)
     } finally { setLoading(false) }
-  }, [filters, logout])
+  }, [])
 
   useEffect(() => {
-    if (token) loadData(token)
-  }, [token, loadData])
-
-  async function login(username, password) {
-    setLoginError('')
-    try {
-      const result = await api('/auth/token/', { method: 'POST', body: { username, password } })
-      localStorage.setItem('portal-token', result.token)
-      setToken(result.token)
-    } catch (e) { setLoginError(`Não foi possível entrar: ${e.message}`) }
-  }
+    loadData()
+  }, [loadData])
 
   async function mutate(path, body, success, method = 'POST') {
     setBusy(true); setNotice(''); setError('')
     try {
-      await api(path, { method, body, token })
+      await api(path, { method, body })
       setNotice(success)
-      await loadData(token)
+      await loadData()
       return true
     } catch (e) { setError(e.message); return false }
     finally { setBusy(false) }
@@ -156,18 +112,16 @@ function App() {
     return <div className="table-wrap"><table className="data-table"><thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={row[key] ?? i}>{row.cells.map((cell, j) => <td key={j}>{cell}</td>)}</tr>)}</tbody></table></div>
   }
 
-  if (!token) return <Login onLogin={login} error={loginError} />
-
   const offers = filteredOffers()
   const indicators = data.indicadores || {}
   const conflictRows = (data.conflitos_detectados || []).map((c, i) => ({ id: i, cells: [c.motivos.join(', '), c.dia, c.horario_a, c.oferta_a, c.horario_b, c.oferta_b] }))
-  const courseRows = (data.cursos || []).filter(c => (!filters.curso || String(c.id) === filters.curso) && (!filters.unidade || c.unidade === filters.unidade)).map(c => ({ id: c.id, cells: [<span className="code-label">{c.codigo}</span>, <span className="table-primary">{c.nome}</span>, c.unidade || '—', c.modalidade || '—', c.coordenador__username || '—', data.sessao?.is_staff ? <button className="button-quiet" onClick={() => { setEditingCourse(c); set('courseCode', c.codigo); set('courseName', c.nome); set('unit', c.unidade || ''); set('modality', c.modalidade || ''); set('coordinatorId', String(c.coordenador_id || '')) }}>Editar</button> : '—'] }))
-  const professorRows = (data.professores || []).filter(p => !filters.professor || String(p.id) === filters.professor).map(p => {
+  const courseRows = (data.cursos || []).map(c => ({ id: c.id, cells: [<span className="code-label">{c.codigo}</span>, <span className="table-primary">{c.nome}</span>, c.unidade || '—', c.modalidade || '—', c.coordenador__username || '—', <button className="button-quiet" onClick={() => { setEditingCourse(c); set('courseCode', c.codigo); set('courseName', c.nome); set('unit', c.unidade || ''); set('modality', c.modalidade || ''); set('coordinatorId', String(c.coordenador_id || '')) }}>Editar</button>] }))
+  const professorRows = (data.professores || []).map(p => {
     const allocations = offers.flatMap(o => o.alocacoes.filter(a => a.professor_id === p.id).map(a => ({ o, a })))
     const total = allocations.reduce((sum, entry) => sum + entry.a.ch_alocada, 0)
     return { id: p.id, cells: [<span className="table-primary">{p.nome}</span>, p.identificacao || '—', p.vinculo || '—', p.email, `${total} h / ${p.ch_maxima_periodo} h`, allocations.length ? <div className="tag-list">{allocations.map(({ o, a }) => <button key={a.id} className="person-chip chip-action" onClick={() => { setActiveView('grade'); setEditingAllocation(a); set('offerId', String(o.id)); set('teacherId', String(p.id)); set('allocatedHours', String(a.ch_alocada)) }}>{o.disciplina} · {a.ch_alocada} h · editar</button>)}</div> : 'Sem alocações'] }
   })
-  const subjectRows = (data.disciplinas || []).filter(d => !filters.disciplina || String(d.id) === filters.disciplina).map(d => {
+  const subjectRows = (data.disciplinas || []).map(d => {
     const list = offers.filter(o => o.disciplina_id === d.id)
     return { id: d.id, cells: [<span className="code-label">{d.codigo}</span>, <span className="table-primary">{d.nome}</span>, `${d.carga_horaria} h`, list.map(o => `${o.curso} · turma ${o.turma} · ${o.periodo}`).join('; ') || 'Sem ofertas'] }
   })
@@ -176,11 +130,10 @@ function App() {
   const scheduleRows = offers.flatMap(o => o.horarios.map(h => ({ id: h.id, cells: [WEEKDAYS[h.dia_semana] || h.dia, `${h.inicio}–${h.fim}`, <><span className="table-primary">{o.disciplina}</span><span className="table-secondary">{o.codigo_disciplina} · {o.carga_oferta} h na oferta</span></>, `${o.curso} · turma ${h.turma || o.turma} · ${o.periodo}`, o.alocacoes.map(a => `${a.professor__nome} (${a.ch_alocada} h)`).join(', ') || 'Sem docente', h.sala || '—', <div className="row-actions"><button className="button-quiet" onClick={() => { setEditingMeeting(h); set('offerId', String(o.id)); set('weekday', String(h.dia_semana)); set('start', h.inicio); set('end', h.fim); set('room', String(h.sala_registro_id || '')); set('meetingClass', h.turma || o.turma) }}>Editar</button><button className="button-danger" onClick={() => window.confirm('Excluir este horário?') && mutate(`/horarios/${h.id}/`, undefined, 'Horário excluído.', 'DELETE')}>Excluir</button></div>] })))
 
   return <div className="app-shell">
-    <header className="topbar"><Brand /><nav className="topbar-nav" aria-label="Navegação principal">{VIEWS.map(([id, title]) => <button key={id} onClick={() => setActiveView(id)} className="nav-item" aria-current={activeView === id ? 'page' : undefined}>{title}</button>)}</nav><div className="topbar-status">{data.sessao?.is_staff ? 'Administração' : 'Coordenação'} · <button className="logout-button" onClick={logout}>Sair</button></div></header>
+    <header className="topbar"><Brand /><nav className="topbar-nav" aria-label="Navegação principal">{VIEWS.map(([id, title]) => <button key={id} onClick={() => setActiveView(id)} className="nav-item" aria-current={activeView === id ? 'page' : undefined}>{title}</button>)}</nav><div className="topbar-status">Acesso público</div></header>
     <main className="page-content">
       {error && <div className="notice error" role="alert">{error}<button className="notice-close" onClick={() => setError('')} aria-label="Fechar aviso">×</button></div>}
       {notice && <div className="notice success" role="status">{notice}<button className="notice-close" onClick={() => setNotice('')} aria-label="Fechar aviso">×</button></div>}
-      <div className="filter-bar"><label>Período letivo<Select value={filters.periodo} onChange={e => setFilters(f => ({ ...f, periodo: e.target.value }))}><option value="">Todos</option>{(data.periodos || []).map(p => <option key={p.id} value={p.id}>{p.ano}/{p.semestre}</option>)}</Select></label><label>Curso<Select value={filters.curso} onChange={e => setFilters(f => ({ ...f, curso: e.target.value }))}><option value="">Todos</option>{(data.cursos || []).map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}</Select></label><label>Professor<Select value={filters.professor} onChange={e => setFilters(f => ({ ...f, professor: e.target.value }))}><option value="">Todos</option>{(data.professores || []).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</Select></label><label>Disciplina<Select value={filters.disciplina} onChange={e => setFilters(f => ({ ...f, disciplina: e.target.value }))}><option value="">Todas</option>{(data.disciplinas || []).map(d => <option key={d.id} value={d.id}>{d.codigo} · {d.nome}</option>)}</Select></label><label>Unidade<Select value={filters.unidade} onChange={e => setFilters(f => ({ ...f, unidade: e.target.value }))}><option value="">Todas</option>{[...new Set((data.cursos || []).map(c => c.unidade).filter(Boolean))].map(u => <option key={u} value={u}>{u}</option>)}</Select></label><button className="button-secondary filter-submit" onClick={() => loadData(token, filters)}>Aplicar filtros</button></div>
       {loading && <div className="loading-line" role="status">Atualizando dados da base central…</div>}
 
       {activeView === 'painel' && <>
@@ -189,29 +142,15 @@ function App() {
           <Stat label="Professores alocados" value={indicators.professores_alocados} detail="Docentes distintos" onClick={() => setActiveView('professores')} />
           <Stat label="Cursos planejados" value={indicators.cursos_planejados} detail={`${indicators.ofertas_planejadas ?? 0} ofertas`} onClick={() => setActiveView('cursos')} />
           <Stat label="CH prevista" value={`${indicators.carga_prevista_disciplinas_h ?? 0} h`} detail="Catálogo das disciplinas" onClick={() => setActiveView('disciplinas')} />
-          <Stat label="CH da oferta" value={`${indicators.carga_planejada_ofertas_h ?? 0} h`} detail="Cada oferta contabilizada uma vez" />
-          <Stat label="CH atribuída" value={`${indicators.carga_docente_atribuida_h ?? 0} h`} detail="Soma das participações docentes" onClick={() => setActiveView('professores')} />
-          <Stat label="CH docente por atribuir" value={`${indicators.carga_docente_pendente_h ?? 0} h`} detail="Saldo entre oferta e alocações" onClick={() => setActiveView('grade')} />
-          <Stat label="Inconsistências de carga" value={indicators.inconsistencias_carga ?? 0} detail="Registros acima da CH da oferta" onClick={() => setActiveView('disciplinas')} />
           <Stat label="Conflitos" value={indicators.conflitos ?? 0} detail="Docente, turma ou sala" onClick={() => setActiveView('grade')} />
-          <Stat label="Ofertas sem docente" value={indicators.ofertas_sem_docente ?? 0} detail="Pendentes de alocação" onClick={() => setActiveView('grade')} />
-          <Stat label="Ofertas sem horário" value={indicators.ofertas_sem_horario ?? 0} detail="Pendentes de planejamento" onClick={() => setActiveView('grade')} />
         </div>
-        {section('Distribuição por curso', 'Apropriação administrativa da CH, separada da alocação de docentes.', table(['Curso', 'CH apropriada'], (data.cursos || []).map(c => ({ id: c.id, cells: [<span className="table-primary">{c.codigo} · {c.nome}</span>, `${offers.flatMap(o => o.participacoes.filter(p => p.curso_id === c.id).map(p => p.ch_apropriada)).reduce((a, b) => a + b, 0)} h`] })), 'Nenhum curso planejado'))}
-        {section('Relatório integrado', 'Exporta as ofertas, as apropriações por curso, as alocações docentes e os encontros com os filtros aplicados.', <button className="button-primary" onClick={exportReport}>Baixar CSV</button>)}
+        {section('Relatório integrado', 'Exporta as ofertas, as apropriações por curso, as alocações docentes e os encontros.', <button className="button-primary" onClick={exportReport}>Baixar CSV</button>)}
         {section('Conflitos detectados', 'Sobreposições nos dados atuais, agrupadas pelo par de registros em conflito.', table(['Tipo', 'Dia', 'Horário A', 'Registro A', 'Horário B', 'Registro B'], conflictRows, 'Nenhum conflito detectado'))}
-        {data.sessao?.is_staff && section('Períodos letivos', 'Períodos centralizados para as ofertas de todos os cursos.', <><form className="form-grid three" onSubmit={e => submit(e, '/periodos/', { ano: Number(forms.periodYear), semestre: Number(forms.periodSemester), data_inicio: forms.periodStart || null, data_fim: forms.periodEnd || null, ativo: true }, 'Período letivo adicionado.', ['periodYear', 'periodStart', 'periodEnd'])}>
-          <input className="field-control" type="number" min="2000" max="2200" placeholder="Ano" value={forms.periodYear} onChange={e => set('periodYear', e.target.value)} required />
-          <Select value={forms.periodSemester} onChange={e => set('periodSemester', e.target.value)}><option value="1">1º semestre</option><option value="2">2º semestre</option></Select>
-          <input className="field-control" type="date" aria-label="Data inicial (opcional)" value={forms.periodStart} onChange={e => set('periodStart', e.target.value)} />
-          <input className="field-control" type="date" aria-label="Data final (opcional)" value={forms.periodEnd} onChange={e => set('periodEnd', e.target.value)} />
-          <button className="button-primary" disabled={busy}>Adicionar período</button>
-        </form><div className="tag-list">{data.periodos.map(p => <span key={p.id} className="person-chip">{p.ano}/{p.semestre}{p.ativo ? ' · ativo' : ''}{p.data_inicio && p.data_fim ? ` · ${p.data_inicio}–${p.data_fim}` : ''}</span>)}</div></>)}
       </>}
 
       {activeView === 'cursos' && <>
         {header('Cursos', 'Gerencie o catálogo compartilhado e acompanhe as ofertas de cada curso.', 'Estrutura acadêmica', data.cursos.length)}
-        {data.sessao?.is_staff && section(editingCourse ? 'Editar curso' : 'Adicionar curso', 'Código identifica cada curso de forma única.', <form className="form-grid" onSubmit={e => submit(e, editingCourse ? `/cursos/${editingCourse.id}/` : '/cursos/', { codigo: forms.courseCode, nome: forms.courseName, unidade: forms.unit, modalidade: forms.modality, coordenador: forms.coordinatorId || null }, editingCourse ? 'Curso atualizado.' : 'Curso adicionado.', ['courseCode', 'courseName', 'unit', 'modality', 'coordinatorId']).then(ok => ok && setEditingCourse(null))}>
+        {section(editingCourse ? 'Editar curso' : 'Adicionar curso', 'Código identifica cada curso de forma única.', <form className="form-grid" onSubmit={e => submit(e, editingCourse ? `/cursos/${editingCourse.id}/` : '/cursos/', { codigo: forms.courseCode, nome: forms.courseName, unidade: forms.unit, modalidade: forms.modality, coordenador: forms.coordinatorId || null }, editingCourse ? 'Curso atualizado.' : 'Curso adicionado.', ['courseCode', 'courseName', 'unit', 'modality', 'coordinatorId']).then(ok => ok && setEditingCourse(null))}>
           <input className="field-control" placeholder="Código" value={forms.courseCode} onChange={e => set('courseCode', e.target.value)} required />
           <input className="field-control" placeholder="Nome do curso" value={forms.courseName} onChange={e => set('courseName', e.target.value)} required />
           <input className="field-control" placeholder="Unidade (opcional)" value={forms.unit} onChange={e => set('unit', e.target.value)} />
@@ -225,7 +164,7 @@ function App() {
 
       {activeView === 'professores' && <>
         {header('Professores', 'Visão global das alocações e carga atribuída no período filtrado.', 'Equipe acadêmica', data.professores.length)}
-        {data.sessao?.is_staff && section('Adicionar professor', 'O nome é obrigatório; e-mail e identificação são opcionais.', <form className="form-grid three" onSubmit={e => submit(e, '/professores/', { nome: forms.professorName, email: forms.professorEmail || null, identificacao: forms.teacherId || null, vinculo: forms.teacherLink || '', ch_maxima_periodo: Number(forms.teacherLimit || 400) }, 'Professor adicionado.', ['professorName', 'professorEmail', 'teacherId', 'teacherLink'])}>
+        {section('Adicionar professor', 'O nome é obrigatório; e-mail e identificação são opcionais.', <form className="form-grid three" onSubmit={e => submit(e, '/professores/', { nome: forms.professorName, email: forms.professorEmail || null, identificacao: forms.teacherId || null, vinculo: forms.teacherLink || '', ch_maxima_periodo: Number(forms.teacherLimit || 400) }, 'Professor adicionado.', ['professorName', 'professorEmail', 'teacherId', 'teacherLink'])}>
           <input className="field-control" placeholder="Nome completo" value={forms.professorName} onChange={e => set('professorName', e.target.value)} required />
           <input className="field-control" type="email" placeholder="E-mail institucional (opcional)" value={forms.professorEmail} onChange={e => set('professorEmail', e.target.value)} />
           <input className="field-control" placeholder="Identificação única (opcional)" value={forms.teacherId} onChange={e => set('teacherId', e.target.value)} />
@@ -238,7 +177,7 @@ function App() {
 
       {activeView === 'disciplinas' && <>
         {header('Disciplinas', 'Catálogo único reutilizado pelas ofertas de diferentes cursos.', 'Catálogo acadêmico', data.disciplinas.length)}
-        {data.sessao?.is_staff && section('Adicionar disciplina', 'A carga prevista pertence ao catálogo; a carga planejada fica na oferta.', <form className="form-grid" onSubmit={e => submit(e, '/disciplinas/', { codigo: forms.subjectCode, nome: forms.subjectName, carga_horaria: Number(forms.subjectHours) }, 'Disciplina adicionada.', ['subjectCode', 'subjectName', 'subjectHours'])}>
+        {section('Adicionar disciplina', 'A carga prevista pertence ao catálogo; a carga planejada fica na oferta.', <form className="form-grid" onSubmit={e => submit(e, '/disciplinas/', { codigo: forms.subjectCode, nome: forms.subjectName, carga_horaria: Number(forms.subjectHours) }, 'Disciplina adicionada.', ['subjectCode', 'subjectName', 'subjectHours'])}>
           <input className="field-control" placeholder="Código único" value={forms.subjectCode} onChange={e => set('subjectCode', e.target.value)} required />
           <input className="field-control" placeholder="Nome da disciplina" value={forms.subjectName} onChange={e => set('subjectName', e.target.value)} required />
           <input className="field-control" type="number" min="1" placeholder="CH prevista (h)" value={forms.subjectHours} onChange={e => set('subjectHours', e.target.value)} required />
@@ -264,7 +203,7 @@ function App() {
 
       {activeView === 'salas' && <>
         {header('Salas e laboratórios', 'Cadastro central de salas com validação de ocupação nos horários.', 'Infraestrutura', data.salas.length)}
-        {data.sessao?.is_staff && section('Adicionar sala', 'O mesmo identificador de sala é usado por todos os cursos.', <form className="form-grid three" onSubmit={e => submit(e, '/salas/', { nome: forms.roomName, capacidade: forms.roomCapacity ? Number(forms.roomCapacity) : null }, 'Sala adicionada.', ['roomName', 'roomCapacity'])}>
+        {section('Adicionar sala', 'O mesmo identificador de sala é usado por todos os cursos.', <form className="form-grid three" onSubmit={e => submit(e, '/salas/', { nome: forms.roomName, capacidade: forms.roomCapacity ? Number(forms.roomCapacity) : null }, 'Sala adicionada.', ['roomName', 'roomCapacity'])}>
           <input className="field-control" placeholder="Identificação da sala" value={forms.roomName} onChange={e => set('roomName', e.target.value)} required />
           <input className="field-control" type="number" min="1" placeholder="Capacidade (opcional)" value={forms.roomCapacity} onChange={e => set('roomCapacity', e.target.value)} />
           <button className="button-primary" disabled={busy}>Adicionar sala</button>
