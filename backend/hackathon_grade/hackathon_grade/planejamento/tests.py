@@ -197,3 +197,123 @@ class IntegridadeCentralTest(FluxoTest):
         self.assertEqual(response.status_code, 200)
         horario.refresh_from_db()
         self.assertEqual(horario.oferta_id, oferta_2.pk)
+
+
+class AssistenteGradeTest(FluxoTest):
+    def test_responde_a_cumprimento_sem_repetir_resposta_da_grade_vazia(self):
+        response = self.client.post(
+            "/api/assistente-grade/",
+            {"message": "OI"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Olá!", response.data["reply"])
+        self.assertNotIn("Ainda não há ofertas", response.data["reply"])
+
+    def test_orienta_pedido_de_criacao_de_oferta_sem_promover_escrita(self):
+        before_count = OfertaDisciplina.objects.count()
+        response = self.client.post(
+            "/api/assistente-grade/",
+            {"message": "Faça uma oferta pra mim"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("não consigo criar ou salvar", response.data["reply"].lower())
+        self.assertIn("Disciplinas → Criar oferta", response.data["reply"])
+        self.assertEqual(OfertaDisciplina.objects.count(), before_count)
+
+    def test_esclarece_quando_a_pergunta_nao_e_sobre_planejamento(self):
+        response = self.client.post(
+            "/api/assistente-grade/",
+            {"message": "Qual é a capital da França?"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("não entendi essa pergunta", response.data["reply"].lower())
+        self.assertNotIn("Ainda não há ofertas", response.data["reply"])
+
+    def test_recomenda_com_base_na_grade_sem_gravar_alteracoes(self):
+        offer = self.oferta(self.d1, self.c1)
+        HorarioAula.objects.create(oferta=offer, dia_semana=0, hora_inicio=time(8), hora_fim=time(10))
+        before_counts = (
+            OfertaDisciplina.objects.count(),
+            AlocacaoProfessor.objects.count(),
+            HorarioAula.objects.count(),
+            AuditLog.objects.count(),
+        )
+        response = self.client.post(
+            "/api/assistente-grade/",
+            {"message": "Me dê um resumo da grade"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("1 encontro(s)", response.data["reply"])
+        self.assertIn("Segunda: 1", response.data["reply"])
+        self.assertEqual(
+            before_counts,
+            (
+                OfertaDisciplina.objects.count(),
+                AlocacaoProfessor.objects.count(),
+                HorarioAula.objects.count(),
+                AuditLog.objects.count(),
+            ),
+        )
+
+    def test_informa_conflitos_encontrados(self):
+        first_offer, second_offer = self.oferta(self.d1, self.c1), self.oferta(self.d2, self.c2)
+        HorarioAula.objects.bulk_create([
+            HorarioAula(
+                oferta=first_offer, dia_semana=0, hora_inicio=time(8), hora_fim=time(10), sala="A1",
+            ),
+            HorarioAula(
+                oferta=second_offer, dia_semana=0, hora_inicio=time(9), hora_fim=time(11), sala="A1",
+            ),
+        ])
+        response = self.client.post(
+            "/api/assistente-grade/",
+            {"message": "Há conflitos na grade?"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Encontrei 1 conflito(s)", response.data["reply"])
+        self.assertIn("Segunda", response.data["reply"])
+        self.assertIn("sala", response.data["reply"])
+
+    def test_indica_dias_sem_encontros_sem_assumir_disponibilidade(self):
+        offer = self.oferta(self.d1, self.c1)
+        HorarioAula.objects.create(oferta=offer, dia_semana=0, hora_inicio=time(8), hora_fim=time(10))
+        response = self.client.post(
+            "/api/assistente-grade/",
+            {"message": "Quais dias estão livres?"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Terça", response.data["reply"])
+        self.assertIn("não confirma disponibilidade institucional", response.data["reply"])
+
+    def test_informa_quando_a_grade_esta_vazia(self):
+        response = self.client.post(
+            "/api/assistente-grade/",
+            {"message": "Sugira como organizar"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Ainda não há ofertas cadastradas", response.data["reply"])
+
+    def test_distribuicao_sem_horarios_cadastrados_tem_orientacao(self):
+        self.oferta(self.d1, self.c1)
+        response = self.client.post(
+            "/api/assistente-grade/",
+            {"message": "Como posso equilibrar a distribuição?"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("nenhuma tem encontro semanal registrado", response.data["reply"])
+
+    def test_rejeita_mensagem_acima_do_limite(self):
+        response = self.client.post(
+            "/api/assistente-grade/",
+            {"message": "x" * 1001},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)

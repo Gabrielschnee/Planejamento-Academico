@@ -1,4 +1,5 @@
 from rest_framework.routers import DefaultRouter
+from django.urls import path
 
 from . import views as v
 
@@ -17,4 +18,6 @@ router.register("alocacoes", v.AlocacaoViewSet)
 router.register("horarios", v.HorarioViewSet)
 router.register("auditoria", v.AuditLogViewSet)
 
-urlpatterns = router.urls
+urlpatterns = router.urls + [
+    path("assistente-grade/", v.assistente_grade, name="assistente-grade"),
+]

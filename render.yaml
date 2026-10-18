@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: planejamento-academico-api
+    name: careshield-api
     runtime: python
     plan: free
     region: ohio
@@ -20,16 +20,15 @@ services:
         generateValue: true
       - key: DATABASE_URL
         fromDatabase:
-          name: planejamento-academico-db
+          name: careshield-db
           property: connectionString
       - key: CORS_ALLOWED_ORIGINS
-        value: https://planejamento-academico.pages.dev
+        value: https://planejamento-academico.pages.dev,https://careshield-6l9.pages.dev
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://planejamento-academico.pages.dev
-
+        value: https://planejamento-academico.pages.dev,https://careshield-6l9.pages.dev
 databases:
-  - name: planejamento-academico-db
-    databaseName: planejamento_academico
-    user: planejamento_admin
+  - name: careshield-db
+    databaseName: careshield
+    user: careshield_admin
     plan: free
     region: ohio

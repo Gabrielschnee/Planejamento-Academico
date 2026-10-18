@@ -8,6 +8,7 @@ const VIEWS = [
 ]
 const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
 const emptyData = { cursos: [], professores: [], disciplinas: [], periodos: [], ofertas: [], salas: [], coordenadores: [], indicadores: {} }
+const demoIndicators = { professors: 3, courses: 5, predictedHours: 6, conflicts: 0 }
 
 function Brand() {
   return <a className="brand" href="#inicio">
@@ -15,7 +16,7 @@ function Brand() {
       <path d="M3 39 23 14l8 25H3Z" fill="currentColor" />
       <path d="m18 39 17-31 9 31H18Z" fill="currentColor" opacity=".78" />
       <path d="m31 39 12-22 10 22H31Z" fill="currentColor" opacity=".58" />
-    </svg><span>Portal do Professor</span>
+    </svg><span>CareShield</span>
   </a>
 }
 
@@ -23,18 +24,24 @@ function Select({ value, onChange, children, ...props }) {
   return <select className="field-control" value={value} onChange={onChange} {...props}>{children}</select>
 }
 
-function Stat({ label, value, detail, onClick }) {
-  return <button type="button" className={`stat-card${onClick ? ' stat-action' : ''}`} onClick={onClick}>
+function Stat({ label, value, detail }) {
+  return <div className="stat-card">
     <span>{label}</span><strong>{value ?? '—'}</strong>{detail && <small>{detail}</small>}
-  </button>
+  </div>
 }
 
 function App() {
-  const [activeView, setActiveView] = useState('painel')
+  const [activeView, setActiveView] = useState('inicio')
   const [data, setData] = useState(emptyData)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [assistantMessages, setAssistantMessages] = useState([
+    { role: 'assistant', content: 'Olá! Posso analisar os horários cadastrados e sugerir maneiras de organizar sua grade. O que você gostaria de ajustar?' },
+  ])
+  const [assistantInput, setAssistantInput] = useState('')
+  const [assistantBusy, setAssistantBusy] = useState(false)
+  const [assistantError, setAssistantError] = useState('')
   const [busy, setBusy] = useState(false)
   const [editingCourse, setEditingCourse] = useState(null)
   const [editingMeeting, setEditingMeeting] = useState(null)
@@ -61,6 +68,55 @@ function App() {
     loadData()
   }, [loadData])
 
+  useEffect(() => {
+    const pageContent = document.querySelector('.page-content')
+    if (!pageContent) return undefined
+
+    const targets = '.page-header, .section-card, .stats-grid, .stat-card, .form-grid > *, .table-wrap, .home-hero, .home-preview-window, .home-preview-summary > div, .home-ai-section, .home-ai-preview, .home-feature-card, .home-step, .home-final-cta, .assistant-phone'
+    if (!('IntersectionObserver' in window)) {
+      pageContent.querySelectorAll(targets).forEach(element => element.classList.add('scroll-reveal-visible'))
+      return undefined
+    }
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        entry.target.classList.add('scroll-reveal-observed')
+        if (entry.isIntersecting) {
+          entry.target.classList.add('scroll-reveal-visible')
+        } else {
+          entry.target.classList.remove('scroll-reveal-visible')
+        }
+      })
+    }, { threshold: 0.12, rootMargin: '0px 0px -32px 0px' })
+    const observeTargets = () => {
+      pageContent.querySelectorAll(`${targets}:not(.scroll-reveal-observed)`).forEach(element => {
+        element.classList.add('scroll-reveal')
+        observer.observe(element)
+      })
+    }
+    const mutationObserver = new MutationObserver(records => {
+      records.forEach(record => record.removedNodes.forEach(node => {
+        if (node instanceof Element) {
+          const removedTargets = []
+          if (node.matches(targets)) removedTargets.push(node)
+          removedTargets.push(...node.querySelectorAll(targets))
+          removedTargets.forEach(element => {
+            observer.unobserve(element)
+            element.classList.remove('scroll-reveal', 'scroll-reveal-observed', 'scroll-reveal-visible')
+          })
+        }
+      }))
+      observeTargets()
+    })
+
+    observeTargets()
+    mutationObserver.observe(pageContent, { childList: true, subtree: true })
+    return () => {
+      mutationObserver.disconnect()
+      observer.disconnect()
+    }
+  }, [])
+
   async function mutate(path, body, success, method = 'POST') {
     setBusy(true); setNotice(''); setError('')
     try {
@@ -70,6 +126,27 @@ function App() {
       return true
     } catch (e) { setError(e.message); return false }
     finally { setBusy(false) }
+  }
+
+  async function sendAssistantMessage(event) {
+    event.preventDefault()
+    const message = assistantInput.trim()
+    if (!message || assistantBusy) return
+
+    const history = assistantMessages.slice(-8)
+    setAssistantMessages(current => [...current, { role: 'user', content: message }])
+    setAssistantInput('')
+    setAssistantError('')
+    setAssistantBusy(true)
+    try {
+      const response = await api('/assistente-grade/', { method: 'POST', body: { message, history } })
+      if (!response?.reply) throw new Error('O serviço de IA retornou uma resposta vazia.')
+      setAssistantMessages(current => [...current, { role: 'assistant', content: response.reply }])
+    } catch (e) {
+      setAssistantError(e.message)
+    } finally {
+      setAssistantBusy(false)
+    }
   }
 
   async function submit(event, path, body, success, reset = []) {
@@ -113,7 +190,6 @@ function App() {
   }
 
   const offers = filteredOffers()
-  const indicators = data.indicadores || {}
   const conflictRows = (data.conflitos_detectados || []).map((c, i) => ({ id: i, cells: [c.motivos.join(', '), c.dia, c.horario_a, c.oferta_a, c.horario_b, c.oferta_b] }))
   const courseRows = (data.cursos || []).map(c => ({ id: c.id, cells: [<span className="code-label">{c.codigo}</span>, <span className="table-primary">{c.nome}</span>, c.unidade || '—', c.modalidade || '—', c.coordenador__username || '—', <button className="button-quiet" onClick={() => { setEditingCourse(c); set('courseCode', c.codigo); set('courseName', c.nome); set('unit', c.unidade || ''); set('modality', c.modalidade || ''); set('coordinatorId', String(c.coordenador_id || '')) }}>Editar</button>] }))
   const professorRows = (data.professores || []).map(p => {
@@ -129,23 +205,130 @@ function App() {
   const roomRows = (data.salas || []).map(room => ({ id: room.id, cells: [<span className="table-primary">{room.nome}</span>, room.capacidade ?? 'Não informada'] }))
   const scheduleRows = offers.flatMap(o => o.horarios.map(h => ({ id: h.id, cells: [WEEKDAYS[h.dia_semana] || h.dia, `${h.inicio}–${h.fim}`, <><span className="table-primary">{o.disciplina}</span><span className="table-secondary">{o.codigo_disciplina} · {o.carga_oferta} h na oferta</span></>, `${o.curso} · turma ${h.turma || o.turma} · ${o.periodo}`, o.alocacoes.map(a => `${a.professor__nome} (${a.ch_alocada} h)`).join(', ') || 'Sem docente', h.sala || '—', <div className="row-actions"><button className="button-quiet" onClick={() => { setEditingMeeting(h); set('offerId', String(o.id)); set('weekday', String(h.dia_semana)); set('start', h.inicio); set('end', h.fim); set('room', String(h.sala_registro_id || '')); set('meetingClass', h.turma || o.turma) }}>Editar</button><button className="button-danger" onClick={() => window.confirm('Excluir este horário?') && mutate(`/horarios/${h.id}/`, undefined, 'Horário excluído.', 'DELETE')}>Excluir</button></div>] })))
 
-  return <div className="app-shell">
-    <header className="topbar"><Brand /><nav className="topbar-nav" aria-label="Navegação principal">{VIEWS.map(([id, title]) => <button key={id} onClick={() => setActiveView(id)} className="nav-item" aria-current={activeView === id ? 'page' : undefined}>{title}</button>)}</nav><div className="topbar-status">Acesso público</div></header>
+  return <div className="app-shell" id="inicio">
+    <header className="topbar"><Brand /><nav className="topbar-nav" aria-label="Navegação principal"><button className="nav-item" onClick={() => setActiveView('inicio')} aria-current={activeView === 'inicio' ? 'page' : undefined}>Início</button>{VIEWS.map(([id, title]) => <button key={id} onClick={() => setActiveView(id)} className="nav-item" aria-current={activeView === id ? 'page' : undefined}>{title}</button>)}</nav><div className="topbar-status">Acesso público</div></header>
     <main className="page-content">
       {error && <div className="notice error" role="alert">{error}<button className="notice-close" onClick={() => setError('')} aria-label="Fechar aviso">×</button></div>}
       {notice && <div className="notice success" role="status">{notice}<button className="notice-close" onClick={() => setNotice('')} aria-label="Fechar aviso">×</button></div>}
       {loading && <div className="loading-line" role="status">Atualizando dados da base central…</div>}
 
-      {activeView === 'painel' && <>
-        {header('Planejamento docente', 'Visão integrada de cursos, docentes, ofertas e horários usando os mesmos registros centrais.', 'Painel acadêmico')}
-        <div className="stats-grid">
-          <Stat label="Professores alocados" value={indicators.professores_alocados} detail="Docentes distintos" onClick={() => setActiveView('professores')} />
-          <Stat label="Cursos planejados" value={indicators.cursos_planejados} detail={`${indicators.ofertas_planejadas ?? 0} ofertas`} onClick={() => setActiveView('cursos')} />
-          <Stat label="CH prevista" value={`${indicators.carga_prevista_disciplinas_h ?? 0} h`} detail="Catálogo das disciplinas" onClick={() => setActiveView('disciplinas')} />
-          <Stat label="Conflitos" value={indicators.conflitos ?? 0} detail="Docente, turma ou sala" onClick={() => setActiveView('grade')} />
+      {activeView === 'inicio' && <>
+        <div className="home-page">
+          <section className="home-hero">
+            <div className="home-hero-copy">
+              <p className="home-kicker">CARESHIELD</p>
+              <h1>Sua grade horária<br /><span>resolvida em um bate-papo.</span></h1>
+              <p className="home-hero-description">Cursos, professores, disciplinas e horários reunidos em um só lugar para facilitar a organização acadêmica da sua instituição.</p>
+              <button className="button-primary home-hero-button" onClick={() => setActiveView('painel')}>Como funciona</button>
+            </div>
+            <div className="home-hero-visual" aria-label="Prévia ilustrativa do planejamento acadêmico">
+              <div className="home-preview-window">
+                <div className="home-preview-top"><span className="home-preview-brand"><span aria-hidden="true">◆</span> Planejamento acadêmico</span><span className="home-preview-status">VISÃO DA SEMANA</span></div>
+                <div className="home-preview-summary">
+                  <div><small>Cursos</small><strong>{String(demoIndicators.courses).padStart(2, '0')}</strong></div>
+                  <div><small>Professores</small><strong>{String(demoIndicators.professors).padStart(2, '0')}</strong></div>
+                  <div><small>CH prevista</small><strong>{demoIndicators.predictedHours} h</strong></div>
+                  <div><small>Conflitos</small><strong>{demoIndicators.conflicts}</strong></div>
+                </div>
+                <div className="home-preview-schedule">
+                  <div className="home-preview-day"><span>SEG</span><i /><i className="schedule-blue" /><i /><i className="schedule-lilac" /></div>
+                  <div className="home-preview-day"><span>TER</span><i className="schedule-lilac" /><i /><i className="schedule-blue" /><i /></div>
+                  <div className="home-preview-day"><span>QUA</span><i /><i className="schedule-blue" /><i className="schedule-lilac" /><i /></div>
+                  <div className="home-preview-day"><span>QUI</span><i className="schedule-blue" /><i /><i /><i className="schedule-lilac" /></div>
+                  <div className="home-preview-day"><span>SEX</span><i /><i className="schedule-lilac" /><i className="schedule-blue" /><i /></div>
+                </div>
+                <div className="home-preview-caption"><span className="preview-dot" /> Prévia demonstrativa · números fictícios</div>
+              </div>
+              <div className="home-assistant-note"><span className="assistant-spark" aria-hidden="true">✦</span><span><strong>Planejamento mais claro</strong><small>Informações organizadas em um só lugar</small></span></div>
+            </div>
+          </section>
+
+          <section className="home-features" aria-labelledby="home-features-title">
+            <div className="home-section-heading"><p className="home-kicker">RECURSOS</p><h2 id="home-features-title">Tudo conectado, de forma simples.</h2><p>Consulte os dados acadêmicos e acompanhe o planejamento com mais clareza.</p></div>
+            <div className="home-feature-grid">
+              <article className="home-feature-card"><span className="home-feature-icon" aria-hidden="true">▦</span><span className="home-feature-number">01</span><h3>Visão integrada</h3><p>Acompanhe cursos, professores, disciplinas e ofertas usando os mesmos registros centrais.</p></article>
+              <article className="home-feature-card"><span className="home-feature-icon" aria-hidden="true">◷</span><span className="home-feature-number">02</span><h3>Grade horária</h3><p>Consulte horários, docentes e salas para entender como as aulas estão organizadas.</p></article>
+              <article className="home-feature-card"><span className="home-feature-icon" aria-hidden="true">◇</span><span className="home-feature-number">03</span><h3>Conflitos em destaque</h3><p>Identifique possíveis sobreposições de docentes, turmas ou salas no planejamento.</p></article>
+              <article className="home-feature-card"><span className="home-feature-icon" aria-hidden="true">✦</span><span className="home-feature-number">04</span><h3>Pronto para evoluir</h3><p>A estrutura centralizada abre espaço para aprimoramentos futuros, sempre com revisão da equipe.</p></article>
+            </div>
+            <p className="home-future-note">Peça sugestões para organizar a grade no assistente disponível na visão geral.</p>
+          </section>
+
+          <section className="home-ai-section" aria-labelledby="home-ai-title">
+            <div className="home-ai-copy">
+              <p className="home-kicker">INTELIGÊNCIA ARTIFICIAL</p>
+              <h2 id="home-ai-title">Use IA para tornar seu planejamento mais inteligente.</h2>
+              <p>Converse com o assistente para analisar a grade cadastrada, encontrar conflitos e receber sugestões práticas para organizar os horários.</p>
+            </div>
+            <div className="home-ai-preview" aria-label="Exemplo de conversa com o assistente acadêmico">
+              <div className="home-ai-header">
+                <span className="assistant-avatar" aria-hidden="true">✦</span>
+                <span><strong>Assistente acadêmico</strong><small><i /> Recomendações locais</small></span>
+                <span className="home-ai-label">EXEMPLO</span>
+              </div>
+              <div className="home-ai-messages">
+                <div className="home-ai-bubble user"><span>Você</span><p>Como posso organizar melhor minha grade desta semana?</p></div>
+                <div className="home-ai-bubble assistant"><span><span className="assistant-spark" aria-hidden="true">✦</span> Assistente</span><p>Posso ajudar! Vou considerar os horários cadastrados, identificar conflitos e sugerir uma distribuição mais equilibrada para sua semana.</p></div>
+              </div>
+              <p className="home-ai-disclaimer">Sugestões automáticas. Você decide o que aplicar.</p>
+            </div>
+          </section>
+
+          <section className="home-how" aria-labelledby="home-how-title">
+            <div className="home-section-heading"><p className="home-kicker">COMO FUNCIONA</p><h2 id="home-how-title">Do planejamento ao resultado.</h2><p>Encontre as informações e acompanhe o planejamento em poucos passos.</p></div>
+            <div className="home-steps">
+              <article className="home-step"><span>01</span><div><h3>Consulte a estrutura</h3><p>Veja cursos, professores, disciplinas e salas cadastrados.</p></div></article>
+              <article className="home-step"><span>02</span><div><h3>Acompanhe os horários</h3><p>Explore a grade e confira como as ofertas estão distribuídas.</p></div></article>
+              <article className="home-step"><span>03</span><div><h3>Veja o panorama</h3><p>Abra a visão geral para acompanhar indicadores e conflitos.</p></div></article>
+            </div>
+          </section>
+
+          <section className="home-final-cta">
+            <div><p className="home-kicker">PORTAL DO PROFESSOR</p><h2>Seu planejamento, em perspectiva.</h2><p>Acesse a visão geral dos dados acadêmicos da instituição.</p></div>
+            <span className="button-primary contact-button" aria-label="Fale conosco">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.7a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.4-4.7A8.5 8.5 0 1 1 20.5 11.7Z" /><path d="M8.1 8.4c.2-.4.4-.4.7-.4h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.1.2-.2.3-.1.5.5.9 1.2 1.6 2.1 2.1.2.1.4 0 .5-.1l.7-.8c.2-.2.4-.2.6-.1l1.6.8c.2.1.3.3.3.5 0 .3-.2 1.1-.7 1.5-.5.5-1.2.7-1.9.6-.7-.1-1.6-.4-2.7-1.1-1.4-.9-2.4-2.1-2.8-2.8-.4-.7-.8-1.7-.8-2.4 0-.8.4-1.4.7-1.6Z" /></svg>
+              Fale conosco
+            </span>
+          </section>
         </div>
-        {section('Relatório integrado', 'Exporta as ofertas, as apropriações por curso, as alocações docentes e os encontros.', <button className="button-primary" onClick={exportReport}>Baixar CSV</button>)}
-        {section('Conflitos detectados', 'Sobreposições nos dados atuais, agrupadas pelo par de registros em conflito.', table(['Tipo', 'Dia', 'Horário A', 'Registro A', 'Horário B', 'Registro B'], conflictRows, 'Nenhum conflito detectado'))}
+      </>}
+
+      {activeView === 'painel' && <>
+        <div className="overview-page">
+          {header('Painel Acadêmico', 'Demonstração com números fictícios, sem relação com os registros reais da base.', 'Visão geral')}
+          <div className="stats-grid">
+            <Stat label="Professores alocados" value={demoIndicators.professors} detail="Número fictício" />
+            <Stat label="Cursos planejados" value={demoIndicators.courses} detail="Número fictício" />
+            <Stat label="CH prevista" value={`${demoIndicators.predictedHours} h`} detail="Valor fictício" />
+            <Stat label="Conflitos" value={demoIndicators.conflicts} detail="Exemplo sem conflitos" />
+          </div>
+          {section('Assistente de grade', 'Receba recomendações automáticas com base nos horários cadastrados.', <div className="assistant-chat">
+            <div className="assistant-chat-info">
+              <span className="assistant-avatar" aria-hidden="true">✦</span>
+              <h3>Organize sua semana</h3>
+              <p>Consulte conflitos, dias sem encontros e a distribuição semanal da grade.</p>
+              <p className="assistant-privacy-note">Este assistente funciona sem API externa: suas mensagens e os dados da grade não saem do sistema. Ele não altera nem salva horários.</p>
+            </div>
+            <div className="assistant-phone">
+              <div className="assistant-phone-header">
+                <span className="assistant-avatar" aria-hidden="true">✦</span>
+                <span><strong>Assistente acadêmico</strong><small><i /> Recomendações locais</small></span>
+              </div>
+              <div className="assistant-chat-history" aria-live="polite" aria-label="Conversa com o assistente">
+                {assistantMessages.map((entry, index) => <div className={`assistant-message ${entry.role}`} key={`${index}-${entry.role}`}><span>{entry.role === 'assistant' ? 'Assistente' : 'Você'}</span><p>{entry.content}</p></div>)}
+                {assistantBusy && <div className="assistant-message assistant"><span>Assistente</span><p>Preparando uma sugestão…</p></div>}
+              </div>
+              {assistantError && <p className="assistant-error" role="alert">{assistantError}</p>}
+              <form className="assistant-chat-form" onSubmit={sendAssistantMessage}>
+                <textarea className="field-control" rows="2" maxLength="1000" placeholder="Escreva sua mensagem..." value={assistantInput} onChange={event => setAssistantInput(event.target.value)} aria-label="Mensagem para o assistente" />
+                <button className="button-primary" disabled={assistantBusy || !assistantInput.trim()} aria-label={assistantBusy ? 'Aguarde a resposta' : 'Enviar mensagem'}>{assistantBusy ? '…' : '↑'}</button>
+              </form>
+              <p className="assistant-phone-disclaimer">Sugestões automáticas. Confira antes de alterar.</p>
+            </div>
+          </div>, 'assistant-section')}
+          {section('Relatório integrado', 'Exporta as ofertas, as apropriações por curso, as alocações docentes e os encontros.', <button className="button-primary" onClick={exportReport}>Baixar CSV</button>)}
+          {section('Conflitos detectados', 'Sobreposições nos dados atuais, agrupadas pelo par de registros em conflito.', table(['Tipo', 'Dia', 'Horário A', 'Registro A', 'Horário B', 'Registro B'], conflictRows, 'Nenhum conflito detectado'))}
+        </div>
       </>}
 
       {activeView === 'cursos' && <>
@@ -240,7 +423,7 @@ function App() {
         </form>)}
         {section('Aulas programadas', 'Professor, turma e sala são checados em intervalos sobrepostos.', table(['Dia', 'Horário', 'Disciplina', 'Curso / turma / período', 'Docentes e CH', 'Sala', 'Ações'], scheduleRows, 'Nenhuma aula programada'))}
       </>}
-      <footer className="page-footer"><span>Portal do Professor · Dados da API central do planejamento</span><span>Alterações registradas em auditoria</span></footer>
+      <footer className="page-footer"><span>CareShield · Dados da API central do planejamento</span><span>Alterações registradas em auditoria</span></footer>
     </main>
   </div>
 }

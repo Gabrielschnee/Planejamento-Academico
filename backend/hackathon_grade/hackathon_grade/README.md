@@ -53,6 +53,12 @@ O banco local padrão é SQLite, útil para desenvolvimento individual. `select_
 
 As rotas de dados não exigem autenticação. O painel aceita filtros `periodo`, `curso`, `professor`, `disciplina` e `unidade`. A auditoria permanece restrita a administradores Django.
 
+## Assistente local de grade
+
+O endpoint público `POST /api/assistente-grade/` gera recomendações com regras locais, usando apenas os registros do planejamento. Não requer chave, serviço externo ou cobrança. Reconhece perguntas sobre conflitos, dias sem encontros e distribuição semanal; não é um modelo generativo e não responde perguntas fora dessas análises.
+
+O endpoint aceita mensagens de até 1.000 caracteres e limita cada IP anônimo a 10 chamadas por hora. As sugestões não são gravadas nem alteram a base; nenhuma mensagem ou dado acadêmico é enviado a provedores externos. A ausência de encontros cadastrados não é tratada como confirmação de disponibilidade institucional.
+
 ## Dados existentes e importação
 
 Os registros existentes no Supabase permanecem intactos. Não existe planilha ou mapeamento de importação no repositório, e a estrutura antiga não contém período letivo, oferta compartilhada, CH por docente ou apropriação por curso em formato compatível. Por segurança, eles não são copiados automaticamente nem exibidos como se estivessem na base Django. Antes de migrá-los, confirme a origem oficial, os campos de período e as regras de CH; então faça uma importação com prévia, relatório de duplicidades/conflitos e confirmação explícita.

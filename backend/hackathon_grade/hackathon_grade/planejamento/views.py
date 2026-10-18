@@ -1,17 +1,157 @@
 import json
+import unicodedata
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 from rest_framework import mixins, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, throttle_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 
 from . import serializers as s
 from .models import (AlocacaoProfessor, AuditLog, Curso, Disciplina, HorarioAula, OfertaDisciplina,
                      ParticipacaoCurso, PeriodoLetivo, Professor, Sala, Turma)
 from .services import resumo_carga, resumo_planejamento
+
+class ScheduleAssistantThrottle(AnonRateThrottle):
+    scope = "schedule_assistant"
+
+
+def _local_schedule_suggestion(message):
+    normalized = "".join(
+        char for char in unicodedata.normalize("NFD", message.casefold())
+        if unicodedata.category(char) != "Mn"
+    )
+    normalized = " ".join(normalized.split()).strip(" .,!?;:")
+    words = set(normalized.split())
+    if words & {"oi", "ola", "opa", "eai", "hey", "hello"} or normalized.startswith(
+        ("bom dia", "boa tarde", "boa noite")
+    ):
+        return (
+            "Olá! Posso ajudar a consultar a grade, identificar conflitos e avaliar a "
+            "distribuição dos horários. O que você quer verificar?"
+        )
+    if any(term in normalized for term in ("obrigad", "valeu", "agradeco")):
+        return "Por nada! Se quiser, posso conferir conflitos, dias sem encontros ou a distribuição da grade."
+    if any(term in normalized for term in (
+        "criar oferta", "crie oferta", "fazer oferta", "faca oferta",
+        "faz uma oferta", "faca uma oferta", "cria uma oferta",
+        "adicionar oferta", "montar oferta",
+    )):
+        return (
+            "Não consigo criar ou salvar ofertas pelo chat. Para cadastrar uma, abra "
+            "Disciplinas → Criar oferta e informe disciplina, período, curso responsável, "
+            "turma e carga horária. Depois, você pode voltar aqui para consultar a grade."
+        )
+
+    asks_about_schedule = any(term in normalized for term in (
+        "grade", "horario", "horarios", "aula", "aulas", "oferta", "ofertas",
+        "conflito", "choque", "sobrepos", "colis", "livre", "vazio",
+        "sem aula", "disponivel", "distribu", "equilibr", "organiza",
+        "sobrecarg", "resumo",
+    ))
+    if not asks_about_schedule:
+        return (
+            "Posso ajudar com o planejamento de horários, mas não entendi essa pergunta. "
+            "Tente perguntar, por exemplo, “há conflitos na grade?”, “quais dias não têm "
+            "aulas?” ou “como estão distribuídos os encontros?”"
+        )
+
+    summary = resumo_planejamento()
+    offers = summary["ofertas"]
+    conflicts = summary["conflitos_detectados"]
+    weekdays = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    day_counts = {day: 0 for day in weekdays}
+    for offer in offers:
+        for meeting in offer["horarios"]:
+            if meeting["dia"] in day_counts:
+                day_counts[meeting["dia"]] += 1
+
+    if not offers:
+        if any(word in normalized for word in ("conflito", "choque", "sobrepos", "colis")):
+            return "Ainda não há ofertas cadastradas, então não existem horários para verificar conflitos."
+        if any(word in normalized for word in ("livre", "vazio", "sem aula", "disponivel")):
+            return "Ainda não há ofertas ou encontros cadastrados; por isso, não dá para identificar dias livres."
+        return "Ainda não há ofertas cadastradas para analisar. Cadastre uma oferta e seus horários primeiro."
+
+    if any(word in normalized for word in ("conflito", "choque", "sobrepos", "colis")):
+        if not conflicts:
+            return "Não encontrei sobreposições de docente, turma ou sala nos horários cadastrados."
+        details = [
+            f"{conflict['dia']}, {conflict['horario_a']} e {conflict['horario_b']} "
+            f"({', '.join(conflict['motivos'])})"
+            for conflict in conflicts[:5]
+        ]
+        remainder = len(conflicts) - len(details)
+        suffix = f" Há mais {remainder} conflito(s) não listado(s)." if remainder else ""
+        return f"Encontrei {len(conflicts)} conflito(s): {'; '.join(details)}.{suffix}"
+
+    scheduled_days = [(day, count) for day, count in day_counts.items() if count]
+    empty_days = [day for day, count in day_counts.items() if not count]
+    if any(word in normalized for word in ("livre", "vazio", "sem aula", "disponivel")):
+        if empty_days:
+            return (
+                f"Não há encontros cadastrados em {', '.join(empty_days)}. "
+                "Isso indica apenas ausência de horários na base, não confirma disponibilidade institucional."
+            )
+        return (
+            "Há encontros cadastrados em todos os dias da semana. Consulte a grade horária "
+            "para identificar intervalos; a base não informa disponibilidade institucional."
+        )
+
+    if any(word in normalized for word in ("distribu", "equilibr", "organiza", "sobrecarg")):
+        if not scheduled_days:
+            return (
+                "Há ofertas cadastradas, mas nenhuma tem encontro semanal registrado. "
+                "Cadastre os horários para eu avaliar a distribuição."
+            )
+        busiest_day, busiest_count = max(scheduled_days, key=lambda entry: entry[1])
+        lightest_day, lightest_count = min(scheduled_days, key=lambda entry: entry[1])
+        if busiest_count - lightest_count <= 1:
+            return (
+                f"A distribuição parece equilibrada pelo número de encontros: "
+                f"{busiest_day} tem {busiest_count} e {lightest_day} tem {lightest_count}. "
+                "Confirme também a duração e as preferências antes de alterar horários."
+            )
+        return (
+            f"{busiest_day} concentra mais encontros ({busiest_count}) e {lightest_day} "
+            f"tem menos ({lightest_count}). Considere avaliar uma redistribuição para "
+            f"{lightest_day}, verificando disponibilidade e conflitos antes de qualquer mudança."
+        )
+
+    count = sum(day_counts.values())
+    overview = ", ".join(
+        f"{day}: {amount}" for day, amount in scheduled_days
+    ) or "nenhum encontro semanal"
+    return (
+        f"A grade tem {count} encontro(s) cadastrado(s) em {len(scheduled_days)} dia(s): "
+        f"{overview}. Detectei {len(conflicts)} conflito(s). Você pode perguntar sobre "
+        "conflitos, dias sem aula ou distribuição dos encontros."
+    )
+
+
+@api_view(["POST"])
+@throttle_classes([ScheduleAssistantThrottle])
+def assistente_grade(request):
+    message = request.data.get("message")
+    history = request.data.get("history", [])
+    if not isinstance(message, str) or not message.strip() or len(message) > 1000:
+        return Response({"detail": "A mensagem deve conter de 1 a 1000 caracteres."}, status=400)
+    if not isinstance(history, list) or len(history) > 8:
+        return Response({"detail": "O histórico deve conter no máximo 8 mensagens."}, status=400)
+    for item in history:
+        if (
+            not isinstance(item, dict)
+            or item.get("role") not in ("user", "assistant")
+            or not isinstance(item.get("content"), str)
+            or not item["content"].strip()
+            or len(item["content"]) > 1000
+        ):
+            return Response({"detail": "O histórico da conversa é inválido."}, status=400)
+
+    return Response({"reply": _local_schedule_suggestion(message.strip())})
 
 
 class AuditedViewSet(viewsets.ModelViewSet):
