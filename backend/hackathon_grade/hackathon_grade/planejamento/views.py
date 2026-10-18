@@ -5,7 +5,6 @@ from django.db import transaction
 from django.db.models import Q
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
@@ -15,13 +14,8 @@ from .models import (AlocacaoProfessor, AuditLog, Curso, Disciplina, HorarioAula
 from .services import resumo_carga, resumo_planejamento
 
 
-def pode_editar(user, curso_responsavel):
-    """Cada curso edita apenas as ofertas pelas quais é responsável (staff edita tudo)."""
-    return user.is_staff or curso_responsavel.coordenador_id == user.id
-
-
 class AuditedViewSet(viewsets.ModelViewSet):
-    """Toda escrita é auditada (antes/depois), autorizada e transacional."""
+    """Escritas abertas são auditadas (antes/depois) e transacionais."""
 
     def curso_de(self, obj):
         """Curso responsável que controla a escrita. Cadastros básicos retornam None (só staff)."""
@@ -31,16 +25,9 @@ class AuditedViewSet(viewsets.ModelViewSet):
         return json.loads(json.dumps(self.get_serializer(inst).data, default=str))
 
     def _log(self, acao, inst, dados):
-        AuditLog.objects.create(usuario=self.request.user, acao=acao, modelo=inst._meta.label,
-                                objeto_id=str(inst.pk), objeto_repr=str(inst)[:200], dados=dados)
-
-    def _autorizar(self, curso):
         user = self.request.user
-        if curso is None:
-            if not user.is_staff:
-                raise PermissionDenied("Apenas administradores alteram este cadastro.")
-        elif not pode_editar(user, curso):
-            raise PermissionDenied("Apenas o coordenador do curso responsável pode alterar esta oferta.")
+        AuditLog.objects.create(usuario=user if user.is_authenticated else None, acao=acao, modelo=inst._meta.label,
+                                objeto_id=str(inst.pk), objeto_repr=str(inst)[:200], dados=dados)
 
     def _bloquear_regras(self, obj):
         """Serializa escritas do mesmo período/docente em bancos com suporte a row locks."""
@@ -62,17 +49,12 @@ class AuditedViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def perform_create(self, serializer):
         validated = serializer.validated_data
-        self._autorizar(self.curso_de(validated))
         self._bloquear_regras(validated)
         inst = serializer.save()
         self._log("CRIAR", inst, {"depois": self._snap(inst)})
 
     @transaction.atomic
     def perform_update(self, serializer):
-        self._autorizar(self.curso_de(serializer.instance))
-        destino = self.curso_de(serializer.validated_data)
-        if destino is not None and destino.pk != self.curso_de(serializer.instance).pk:
-            self._autorizar(destino)
         self._bloquear_regras(serializer.instance)
         self._bloquear_regras(serializer.validated_data)
         antes = self._snap(serializer.instance)
@@ -81,7 +63,6 @@ class AuditedViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_destroy(self, instance):
-        self._autorizar(self.curso_de(instance))
         antes = self._snap(instance)
         self._log("EXCLUIR", instance, {"antes": antes})
         instance.delete()
@@ -212,5 +193,7 @@ class CoordenadorViewSet(viewsets.ViewSet):
 class SessaoViewSet(viewsets.ViewSet):
     def list(self, request):
         user = request.user
+        if not user.is_authenticated:
+            return Response({"id": None, "username": "", "is_staff": False, "cursos_coordenados": []})
         return Response({"id": user.pk, "username": user.get_username(), "is_staff": user.is_staff,
                          "cursos_coordenados": list(user.cursos_coordenados.values_list("id", flat=True))})

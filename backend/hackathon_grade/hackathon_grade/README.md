@@ -1,4 +1,4 @@
-# Portal do Professor — planejamento docente
+# CronosAI — planejamento docente
 
 Aplicação React + Vite consumindo uma API Django REST Framework. O Django é a fonte única de dados do planejamento; a interface não grava no Supabase.
 
@@ -9,7 +9,6 @@ Em `backend/hackathon_grade/hackathon_grade`:
 ```powershell
 python -m pip install -r requirements.txt
 python manage.py migrate
-python manage.py createsuperuser
 python manage.py runserver
 ```
 
@@ -20,7 +19,7 @@ npm install
 npm run dev
 ```
 
-Abra `http://localhost:5173`. O Vite encaminha `/api` para `http://127.0.0.1:8000`. Entre com a conta criada pelo Django. Cadastros básicos (professores, disciplinas, cursos, períodos e salas) exigem uma conta staff; coordenadores vinculados a usuários podem manter as ofertas do próprio curso. Associe usuários a professores e cursos pelo Django Admin quando necessário.
+Abra `http://localhost:5173`. O Vite encaminha `/api` para `http://127.0.0.1:8000`. O CronosAI não exige login: as rotas operacionais da API permitem leitura e gravação anônimas; a consulta de auditoria continua restrita a administradores Django. Não exponha este backend em uma rede pública sem implementar autenticação e controle de acesso.
 
 ## Modelo central
 
@@ -51,7 +50,7 @@ O banco local padrão é SQLite, útil para desenvolvimento individual. `select_
 
 `/api/cursos/`, `/api/professores/`, `/api/disciplinas/`, `/api/periodos/`, `/api/turmas/`, `/api/salas/`, `/api/ofertas/`, `/api/participacoes/`, `/api/alocacoes/`, `/api/horarios/`, `/api/painel/` e `/api/auditoria/`.
 
-Obtenha token via `POST /api/auth/token/` com `username` e `password`; envie `Authorization: Token <token>`. O painel aceita filtros `periodo`, `curso`, `professor`, `disciplina` e `unidade`.
+O painel aceita filtros `periodo`, `curso`, `professor`, `disciplina` e `unidade`. As rotas de dados não exigem token.
 
 ## Dados existentes e importação
 

@@ -7,39 +7,78 @@ const VIEWS = [
   ['disciplinas', 'Disciplinas'], ['salas', 'Salas e laboratórios'], ['grade', 'Grade horária'],
 ]
 const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
-const emptyData = { cursos: [], professores: [], disciplinas: [], periodos: [], ofertas: [], salas: [], coordenadores: [], sessao: null, indicadores: {} }
-
-function Login({ onLogin, error }) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-  async function submit(event) {
-    event.preventDefault()
-    setBusy(true)
-    try { await onLogin(username, password) } finally { setBusy(false) }
-  }
-  return <main className="login-page">
-    <form className="login-card" onSubmit={submit}>
-      <Brand />
-      <p className="eyebrow">Acesso seguro</p>
-      <h1>Entre no portal</h1>
-      <p className="page-description">Use sua conta de coordenação ou administração acadêmica.</p>
-      {error && <div className="notice error" role="alert">{error}</div>}
-      <label className="login-label">Usuário<input className="field-control" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required /></label>
-      <label className="login-label">Senha<input className="field-control" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
-      <button className="button-primary" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
-    </form>
-  </main>
-}
+const emptyData = { cursos: [], professores: [], disciplinas: [], periodos: [], ofertas: [], salas: [], coordenadores: [], sessao: { is_staff: true }, indicadores: {} }
 
 function Brand() {
   return <a className="brand" href="#inicio">
     <svg className="brand-mark" viewBox="0 0 56 44" aria-hidden="true" focusable="false">
-      <path d="M3 39 23 14l8 25H3Z" fill="currentColor" />
-      <path d="m18 39 17-31 9 31H18Z" fill="currentColor" opacity=".78" />
-      <path d="m31 39 12-22 10 22H31Z" fill="currentColor" opacity=".58" />
-    </svg><span>Portal do Professor</span>
+      <circle cx="27" cy="22" r="16" fill="none" stroke="currentColor" strokeWidth="4" />
+      <path d="M27 12v11l8 5" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg><span>CronosAI</span>
   </a>
+}
+
+function Reveal({ children, className = '' }) {
+  useEffect(() => {
+    const elements = document.querySelectorAll('.reveal:not(.is-visible)')
+    if (!('IntersectionObserver' in window)) {
+      elements.forEach(element => element.classList.add('is-visible'))
+      return
+    }
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible')
+          observer.unobserve(entry.target)
+        }
+      })
+    }, { threshold: 0.16 })
+    elements.forEach(element => observer.observe(element))
+    return () => observer.disconnect()
+  }, [])
+  return <div className={`reveal ${className}`}>{children}</div>
+}
+
+function LandingPage({ onOpenApp }) {
+  const [expandedAi, setExpandedAi] = useState(-1)
+  const [aiPreview, setAiPreview] = useState('review')
+  const aiFeatures = [
+    ['Assistência à construção do planejamento', 'A partir de objetivos, conteúdos e orientações fornecidos pelo educador, a IA pode ajudar a estruturar uma primeira versão do planejamento, que será revisada e aprovada pelo professor.', 'Organize objetivos, conteúdos e atividades em uma estrutura inicial para revisão.'],
+    ['Identificação de possíveis inconsistências', 'Analise informações disponíveis para sinalizar campos ausentes, divergências ou pontos que mereçam revisão.', 'Receba alertas sobre informações que parecem incompletas ou divergentes.'],
+    ['Revisão e aprimoramento de textos', 'Torne objetivos, descrições de atividades e estratégias pedagógicas mais claros e coerentes com as orientações fornecidas.', 'Refine a clareza do texto preservando a intenção pedagógica de quem escreveu.'],
+    ['Síntese inteligente para a coordenação', 'Resuma planejamentos com destaque para pendências e pontos que merecem acompanhamento, respeitando o escopo dos dados disponíveis.', 'Visualize um resumo para apoiar o acompanhamento da equipe.'],
+  ]
+  return <main className="landing-page" id="inicio">
+    <nav className="landing-nav" aria-label="Navegação principal">
+      <a className="landing-brand" href="#inicio"><span className="landing-brand-mark">C</span> CronosAI</a>
+      <div className="landing-nav-links"><a href="#solucao">A solução</a><a href="#inteligencia">IA assistiva</a><a href="#recursos">Recursos</a><button className="landing-nav-cta" onClick={onOpenApp}>Acessar plataforma</button></div>
+    </nav>
+
+    <section className="landing-hero">
+      <Reveal className="landing-hero-copy">
+        <h1 className="landing-hero-manifesto">Menos planilhas.<br />Menos conflitos.<br /><span>Mais controle.</span></h1>
+        <h2 className="landing-hero-subtitle">A gestão docente que sua instituição precisa.</h2>
+        <p className="landing-lead">Abandone a complexidade das planilhas Excel. Organize grades horárias, distribua cargas docentes e identifique inconsistências em um único lugar — com mais agilidade, clareza e segurança.</p>
+        <div className="landing-actions"><button className="landing-primary" onClick={onOpenApp}>Conheça a plataforma <span aria-hidden="true">↗</span></button><a className="landing-text-link" href="#solucao">Veja como funciona <span aria-hidden="true">↓</span></a></div>
+      </Reveal>
+      <Reveal className="landing-product-visual">
+        <div className="mock-window">
+          <div className="mock-topbar"><div className="mock-dots"><i/><i/><i/></div><span>Planejamento acadêmico</span><span className="mock-user">Coordenação</span></div>
+          <div className="mock-content"><aside className="mock-sidebar"><b>◈　Portal</b><span className="selected">▦　Visão geral</span><span>⌂　Cursos</span><span>◎　Professores</span><span>▤　Grade horária</span></aside><div className="mock-dashboard"><p className="mock-caption">SEGUNDO SEMESTRE · 2026</p><h2>Seu planejamento, em perspectiva.</h2><div className="mock-stats"><div><small>Cursos ativos</small><strong>08</strong><em>no período</em></div><div><small>Docentes</small><strong>42</strong><em>na equipe</em></div><div><small>Conflitos</small><strong className="mock-alert">02</strong><em>precisam de atenção</em></div></div><div className="mock-schedule"><div className="mock-schedule-head"><b>Visão da semana</b><span>Segunda — Sexta</span></div><div className="mock-grid"><span>08:00</span><i/><i className="mock-blue"/><i/><span>10:00</span><i className="mock-lilac"/><i/><i className="mock-blue short"/><span>14:00</span><i/><i className="mock-lilac short"/><i/></div></div></div></div>
+        </div>
+      </Reveal>
+      <a className="landing-scroll" href="#solucao"><span/>Role para descobrir</a>
+    </section>
+
+    <section className="landing-section landing-light" id="solucao"><Reveal className="landing-section-copy"><p className="landing-eyebrow">Uma rotina mais organizada</p><h2>Menos planilhas desconectadas. <span>Mais visão do todo.</span></h2><p>A rotina acadêmica reúne muitas peças: pessoas, cursos, disciplinas, salas e horários. O Portal conecta essas informações para que a coordenação enxergue o planejamento com mais segurança.</p></Reveal><Reveal className="landing-feature-row"><article><span className="feature-number">01</span><h3>Centralize</h3><p>Cadastros e informações acadêmicas reunidos em uma base compartilhada.</p></article><article><span className="feature-number">02</span><h3>Visualize</h3><p>Acompanhe cargas, alocações e horários com filtros que ajudam a encontrar o que precisa.</p></article><article><span className="feature-number">03</span><h3>Antecipe</h3><p>Identifique conflitos de agenda antes que eles virem retrabalho no dia a dia.</p></article></Reveal></section>
+
+    <section className="landing-ai" id="inteligencia"><div className="landing-ai-top"><Reveal className="landing-ai-copy"><p className="landing-ai-eyebrow">Inteligência artificial</p><h2>Use a IA para torná-lo mais inteligente.</h2><p>A inteligência artificial pode ajudar sua equipe a revisar informações, estruturar ideias e identificar pontos que merecem atenção, sem substituir o julgamento pedagógico do professor.</p></Reveal><Reveal className="ai-assistant"><div className="ai-assistant-head"><span className="ai-sparkle">✧</span><strong>Assistente Pedagógico Inteligente</strong><span className="ai-context">Plano · Ciências 7º C</span></div><div className="ai-prompt">Revise este planejamento e identifique informações que precisam de maior detalhamento.</div>{aiPreview === 'ignored' ? <div className="ai-response"><p>Revisão ignorada. Você pode explorar outra possibilidade abaixo.</p><button onClick={() => setAiPreview('review')}>Ver análise novamente</button></div> : <div className="ai-response"><p>{aiPreview === 'suggestions' ? 'Sugestões para aprimorar este planejamento:' : 'Encontrei três pontos que podem ser revisados:'}</p>{aiPreview === 'suggestions' ? <ul><li>Defina um objetivo de aprendizagem mais específico.</li><li>Indique como será acompanhada a atividade.</li><li>Relacione o critério de avaliação ao objetivo.</li></ul> : <ul><li>O objetivo de aprendizagem está descrito de forma ampla;</li><li>A atividade proposta não explicita como será acompanhada;</li><li>O critério de avaliação pode ser detalhado.</li></ul>}<p>Deseja sugestões de melhoria?</p><div className="ai-actions"><button className="ai-action-primary" onClick={() => setAiPreview('suggestions')}>Ver sugestões</button><button className="ai-action-secondary" onClick={() => setAiPreview('ignored')}>Ignorar</button></div></div>}<p className="ai-disclaimer">◉ Demonstração ilustrativa. A decisão final é sempre do professor.</p></Reveal></div><Reveal className="ai-feature-grid">{aiFeatures.map(([title,description,detail],index)=><button type="button" className={`ai-feature${expandedAi === index ? ' is-expanded' : ''}`} key={title} aria-expanded={expandedAi === index} onClick={() => setExpandedAi(expandedAi === index ? -1 : index)}><span className="ai-feature-meta"><span className="ai-feature-icon">{['↗','△','▤','✧'][index]}</span><span>0{index + 1}</span></span><strong>{title}</strong><span className="ai-feature-description">{description}</span>{expandedAi === index && <span className="ai-feature-detail">{detail}</span>}</button>)}</Reveal></section>
+
+    <section className="landing-section landing-dark" id="recursos"><Reveal className="landing-dark-copy"><p className="landing-eyebrow">Uma jornada conectada</p><h2>Do planejamento à sala de aula, <span>cada detalhe encontra seu lugar.</span></h2><p>Relacione professores, disciplinas, turmas e salas em uma grade feita para dar contexto ao trabalho de quem coordena e de quem ensina.</p></Reveal><Reveal className="landing-dark-visual"><div className="dark-visual-heading"><span>GRADE DA SEMANA</span><span>2º semestre · 2026</span></div><div className="dark-timetable"><div className="dark-day-labels"><span>HORÁRIO</span><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span></div>{[['08:00','Didática','—','Avaliação','—','Projeto'],['10:00','—','Leitura','—','Pesquisa','—'],['14:00','Currículo','Estágio','—','Didática','Extensão']].map(row=><div className="dark-time-row" key={row[0]}>{row.map((cell,i)=><span key={i} className={i > 0 && cell !== '—' ? `dark-class class-${(i + row[0].charCodeAt(1)) % 3}` : ''}>{cell}</span>)}</div>)}</div></Reveal></section>
+
+    <section className="landing-final"><Reveal><p className="landing-eyebrow">Um planejamento que faz sentido</p><h2>Seu tempo merece uma jornada mais leve.</h2><p>Comece com uma visão mais clara do trabalho docente.</p><button className="landing-primary" onClick={onOpenApp}>Acessar CronosAI <span aria-hidden="true">↗</span></button></Reveal></section>
+    <footer className="landing-footer"><span>© 2026 CronosAI</span><span>Planejamento acadêmico com mais clareza.</span></footer>
+  </main>
 }
 
 function Select({ value, onChange, children, ...props }) {
@@ -53,8 +92,7 @@ function Stat({ label, value, detail, onClick }) {
 }
 
 function App() {
-  const [token, setToken] = useState(() => localStorage.getItem('portal-token') || '')
-  const [loginError, setLoginError] = useState('')
+  const [showLanding, setShowLanding] = useState(true)
   const [activeView, setActiveView] = useState('painel')
   const [data, setData] = useState(emptyData)
   const [filters, setFilters] = useState({ periodo: '', curso: '', professor: '', disciplina: '', unidade: '' })
@@ -68,49 +106,32 @@ function App() {
   const [forms, setForms] = useState({ courseName: '', courseCode: '', unit: '', modality: '', coordinatorId: '', teacherLink: '', teacherLimit: '', professorName: '', professorEmail: '', teacherId: '', subjectId: '', subjectCode: '', subjectName: '', subjectHours: '', periodId: '', periodYear: '', periodSemester: '1', periodStart: '', periodEnd: '', className: 'A', classPeriod: '', offerHours: '', responsibleCourse: '', participationCourse: '', appropriationHours: '', roomName: '', roomCapacity: '', room: '', weekday: '0', start: '', end: '', allocatedHours: '', meetingClass: '', offerId: '', offerSubject: '' })
   const set = (name, value) => setForms(current => ({ ...current, [name]: value }))
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('portal-token')
-    setToken('')
-    setData(emptyData)
-  }, [])
-
-  const loadData = useCallback(async (currentToken, currentFilters = filters) => {
+  const loadData = useCallback(async (currentFilters = filters) => {
     setLoading(true)
     setError('')
     const query = new URLSearchParams(Object.entries(currentFilters).filter(([, value]) => value))
     try {
-      const [dashboard, rooms, coordinators, session] = await Promise.all([
-        api(`/painel/${query.size ? `?${query}` : ''}`, { token: currentToken }),
-        allPages('/salas/', { token: currentToken }),
-        allPages('/coordenadores/', { token: currentToken }),
-        api('/sessao/', { token: currentToken }),
+      const [dashboard, rooms, coordinators] = await Promise.all([
+        api(`/painel/${query.size ? `?${query}` : ''}`),
+        allPages('/salas/'),
+        allPages('/coordenadores/'),
       ])
-      setData({ ...dashboard, salas: rooms, coordenadores: coordinators, sessao: session })
+      setData({ ...dashboard, salas: rooms, coordenadores, sessao: { is_staff: true } })
     } catch (e) {
-      if (/401|403|credenciais|token/i.test(e.message)) logout()
       setError(e.message)
     } finally { setLoading(false) }
-  }, [filters, logout])
+  }, [filters])
 
   useEffect(() => {
-    if (token) loadData(token)
-  }, [token, loadData])
-
-  async function login(username, password) {
-    setLoginError('')
-    try {
-      const result = await api('/auth/token/', { method: 'POST', body: { username, password } })
-      localStorage.setItem('portal-token', result.token)
-      setToken(result.token)
-    } catch (e) { setLoginError(`Não foi possível entrar: ${e.message}`) }
-  }
+    if (!showLanding) loadData()
+  }, [showLanding, loadData])
 
   async function mutate(path, body, success, method = 'POST') {
     setBusy(true); setNotice(''); setError('')
     try {
-      await api(path, { method, body, token })
+      await api(path, { method, body })
       setNotice(success)
-      await loadData(token)
+      await loadData()
       return true
     } catch (e) { setError(e.message); return false }
     finally { setBusy(false) }
@@ -156,7 +177,7 @@ function App() {
     return <div className="table-wrap"><table className="data-table"><thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={row[key] ?? i}>{row.cells.map((cell, j) => <td key={j}>{cell}</td>)}</tr>)}</tbody></table></div>
   }
 
-  if (!token) return <Login onLogin={login} error={loginError} />
+  if (showLanding) return <LandingPage onOpenApp={() => setShowLanding(false)} />
 
   const offers = filteredOffers()
   const indicators = data.indicadores || {}
@@ -176,11 +197,11 @@ function App() {
   const scheduleRows = offers.flatMap(o => o.horarios.map(h => ({ id: h.id, cells: [WEEKDAYS[h.dia_semana] || h.dia, `${h.inicio}–${h.fim}`, <><span className="table-primary">{o.disciplina}</span><span className="table-secondary">{o.codigo_disciplina} · {o.carga_oferta} h na oferta</span></>, `${o.curso} · turma ${h.turma || o.turma} · ${o.periodo}`, o.alocacoes.map(a => `${a.professor__nome} (${a.ch_alocada} h)`).join(', ') || 'Sem docente', h.sala || '—', <div className="row-actions"><button className="button-quiet" onClick={() => { setEditingMeeting(h); set('offerId', String(o.id)); set('weekday', String(h.dia_semana)); set('start', h.inicio); set('end', h.fim); set('room', String(h.sala_registro_id || '')); set('meetingClass', h.turma || o.turma) }}>Editar</button><button className="button-danger" onClick={() => window.confirm('Excluir este horário?') && mutate(`/horarios/${h.id}/`, undefined, 'Horário excluído.', 'DELETE')}>Excluir</button></div>] })))
 
   return <div className="app-shell">
-    <header className="topbar"><Brand /><nav className="topbar-nav" aria-label="Navegação principal">{VIEWS.map(([id, title]) => <button key={id} onClick={() => setActiveView(id)} className="nav-item" aria-current={activeView === id ? 'page' : undefined}>{title}</button>)}</nav><div className="topbar-status">{data.sessao?.is_staff ? 'Administração' : 'Coordenação'} · <button className="logout-button" onClick={logout}>Sair</button></div></header>
+    <header className="topbar"><Brand /><nav className="topbar-nav" aria-label="Navegação principal">{VIEWS.map(([id, title]) => <button key={id} onClick={() => setActiveView(id)} className="nav-item" aria-current={activeView === id ? 'page' : undefined}>{title}</button>)}</nav><div className="topbar-status">Acesso aberto</div></header>
     <main className="page-content">
       {error && <div className="notice error" role="alert">{error}<button className="notice-close" onClick={() => setError('')} aria-label="Fechar aviso">×</button></div>}
       {notice && <div className="notice success" role="status">{notice}<button className="notice-close" onClick={() => setNotice('')} aria-label="Fechar aviso">×</button></div>}
-      <div className="filter-bar"><label>Período letivo<Select value={filters.periodo} onChange={e => setFilters(f => ({ ...f, periodo: e.target.value }))}><option value="">Todos</option>{(data.periodos || []).map(p => <option key={p.id} value={p.id}>{p.ano}/{p.semestre}</option>)}</Select></label><label>Curso<Select value={filters.curso} onChange={e => setFilters(f => ({ ...f, curso: e.target.value }))}><option value="">Todos</option>{(data.cursos || []).map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}</Select></label><label>Professor<Select value={filters.professor} onChange={e => setFilters(f => ({ ...f, professor: e.target.value }))}><option value="">Todos</option>{(data.professores || []).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</Select></label><label>Disciplina<Select value={filters.disciplina} onChange={e => setFilters(f => ({ ...f, disciplina: e.target.value }))}><option value="">Todas</option>{(data.disciplinas || []).map(d => <option key={d.id} value={d.id}>{d.codigo} · {d.nome}</option>)}</Select></label><label>Unidade<Select value={filters.unidade} onChange={e => setFilters(f => ({ ...f, unidade: e.target.value }))}><option value="">Todas</option>{[...new Set((data.cursos || []).map(c => c.unidade).filter(Boolean))].map(u => <option key={u} value={u}>{u}</option>)}</Select></label><button className="button-secondary filter-submit" onClick={() => loadData(token, filters)}>Aplicar filtros</button></div>
+      <div className="filter-bar"><label>Período letivo<Select value={filters.periodo} onChange={e => setFilters(f => ({ ...f, periodo: e.target.value }))}><option value="">Todos</option>{(data.periodos || []).map(p => <option key={p.id} value={p.id}>{p.ano}/{p.semestre}</option>)}</Select></label><label>Curso<Select value={filters.curso} onChange={e => setFilters(f => ({ ...f, curso: e.target.value }))}><option value="">Todos</option>{(data.cursos || []).map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}</Select></label><label>Professor<Select value={filters.professor} onChange={e => setFilters(f => ({ ...f, professor: e.target.value }))}><option value="">Todos</option>{(data.professores || []).map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</Select></label><label>Disciplina<Select value={filters.disciplina} onChange={e => setFilters(f => ({ ...f, disciplina: e.target.value }))}><option value="">Todas</option>{(data.disciplinas || []).map(d => <option key={d.id} value={d.id}>{d.codigo} · {d.nome}</option>)}</Select></label><label>Unidade<Select value={filters.unidade} onChange={e => setFilters(f => ({ ...f, unidade: e.target.value }))}><option value="">Todas</option>{[...new Set((data.cursos || []).map(c => c.unidade).filter(Boolean))].map(u => <option key={u} value={u}>{u}</option>)}</Select></label><button className="button-secondary filter-submit" onClick={() => loadData(filters)}>Aplicar filtros</button></div>
       {loading && <div className="loading-line" role="status">Atualizando dados da base central…</div>}
 
       {activeView === 'painel' && <>
@@ -301,7 +322,7 @@ function App() {
         </form>)}
         {section('Aulas programadas', 'Professor, turma e sala são checados em intervalos sobrepostos.', table(['Dia', 'Horário', 'Disciplina', 'Curso / turma / período', 'Docentes e CH', 'Sala', 'Ações'], scheduleRows, 'Nenhuma aula programada'))}
       </>}
-      <footer className="page-footer"><span>Portal do Professor · Dados da API central do planejamento</span><span>Alterações registradas em auditoria</span></footer>
+      <footer className="page-footer"><span>CronosAI · Dados da API central do planejamento</span><span>Alterações registradas em auditoria</span></footer>
     </main>
   </div>
 }
