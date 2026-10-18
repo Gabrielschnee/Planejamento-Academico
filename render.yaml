@@ -6,11 +6,17 @@ services:
     region: ohio
     rootDir: backend/hackathon_grade/hackathon_grade
     buildCommand: ./build.sh
-    startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    startCommand: python manage.py migrate --noinput && python manage.py bootstrap_admin && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DEBUG
         value: "0"
       - key: SECRET_KEY
+        generateValue: true
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: admin
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: admin@planejamento-academico.invalid
+      - key: DJANGO_SUPERUSER_PASSWORD
         generateValue: true
       - key: DATABASE_URL
         fromDatabase:
