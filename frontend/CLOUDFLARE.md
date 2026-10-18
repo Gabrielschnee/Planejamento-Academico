@@ -6,12 +6,12 @@
 - Diretório raiz do projeto: `frontend`
 - Comando de build: `npm run build`
 - Diretório de saída: `dist`
-- Variável de ambiente de produção: `VITE_API_BASE=https://<dominio-da-api>/api`
+- Variável de ambiente de produção: `VITE_API_BASE=https://planejamento-academico-api.onrender.com/api`
 
 O arquivo `public/_redirects` mantém o fallback da aplicação para rotas do frontend.
 
 ## Dependência da API
 
-O frontend precisa da API Django para autenticação e dados. A API deve estar publicada com PostgreSQL, `DEBUG=0`, `SECRET_KEY` seguro e `ALLOWED_HOSTS` restrito ao domínio da API. Como a API será chamada de outro domínio, o Django também precisa permitir o domínio `*.pages.dev` (e o domínio personalizado, se houver) via CORS. A configuração atual do backend ainda não implementa CORS.
+O frontend usa a API Django para autenticação e dados. O backend está configurado para produção com PostgreSQL, `DEBUG=0`, `SECRET_KEY` no ambiente e CORS para o domínio deste Pages.
 
-Depois de criar o projeto Pages, configure `VITE_API_BASE` com a URL pública real da API e faça um novo deploy para compilar o endereço no frontend.
+O arquivo `.env.production` já define `VITE_API_BASE` para a API publicada no Render. O build local e os próximos deploys do Pages usarão esse endereço.
